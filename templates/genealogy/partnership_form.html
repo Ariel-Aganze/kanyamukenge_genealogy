@@ -1,0 +1,417 @@
+{% extends 'base/dashboard.html' %}
+
+{% block title %}Ajouter une union - Famille KANYAMUKENGE{% endblock %}
+{% block page_title %}Ajouter une union{% endblock %}
+
+{% block dashboard_content %}
+<div class="max-w-4xl mx-auto">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+        <a href="{% url 'genealogy:dashboard' %}" class="hover:text-brand-primary transition">Tableau de bord</a>
+        <i data-feather="chevron-right" class="w-4 h-4"></i>
+        <a href="{% url 'genealogy:person_detail' person.id %}" class="hover:text-brand-primary transition">{{ person.get_full_name }}</a>
+        <i data-feather="chevron-right" class="w-4 h-4"></i>
+        <span class="text-brand-primary">Ajouter une union</span>
+    </nav>
+
+    <!-- Header -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6 mb-8">
+        <div class="flex items-center gap-4">
+            <div class="w-16 h-16 bg-gradient-to-br from-brand-accent to-orange-600 rounded-full flex items-center justify-center">
+                <i data-feather="heart" class="w-8 h-8 text-white"></i>
+            </div>
+            <div class="flex-1">
+                <h1 class="font-serif text-2xl font-bold text-brand-primary">Ajouter une union</h1>
+                <p class="text-gray-600">Enregistrez un mariage ou une union pour <strong>{{ person.get_full_name }}</strong></p>
+            </div>
+            <!-- Personne concernée -->
+            <div class="text-right">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br 
+                        {% if person.gender == 'M' %}from-blue-500 to-blue-600{% elif person.gender == 'F' %}from-pink-500 to-pink-600{% else %}from-gray-500 to-gray-600{% endif %} 
+                        flex items-center justify-center text-white font-bold">
+                        {{ person.first_name.0 }}{{ person.last_name.0 }}
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-900">{{ person.get_full_name }}</p>
+                        {% if person.birth_date %}
+                        <p class="text-xs text-gray-500">{{ person.birth_date|date:"Y" }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulaire -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm">
+        <div class="px-6 py-4 border-b border-gray-100">
+            <h2 class="font-serif text-xl font-bold text-gray-900">Informations de l'union</h2>
+        </div>
+        
+        <form method="post" class="p-6" id="partnershipForm">
+            {% csrf_token %}
+            
+            <!-- Section: Conjoint -->
+            <div class="space-y-6 mb-8">
+                <h3 class="font-serif text-lg font-semibold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <i data-feather="user" class="w-5 h-5 text-brand-primary"></i>
+                    Conjoint(e)
+                </h3>
+                
+                <div>
+                    <label for="{{ form.person2.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Sélectionner le/la conjoint(e) *
+                    </label>
+                    <div class="relative">
+                        {{ form.person2 }}
+                        <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                            <i data-feather="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                        </div>
+                    </div>
+                    {% if form.person2.errors %}
+                        <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <i data-feather="alert-circle" class="w-4 h-4"></i>
+                            {{ form.person2.errors.0 }}
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Option pour ajouter une nouvelle personne -->
+                    <div class="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div class="flex items-center gap-2 mb-2">
+                            <i data-feather="info" class="w-4 h-4 text-blue-600"></i>
+                            <span class="text-sm font-medium text-blue-800">Personne non trouvée ?</span>
+                        </div>
+                        <p class="text-sm text-blue-700 mb-3">
+                            Si le/la conjoint(e) n'est pas encore dans l'arbre généalogique, vous devez d'abord l'ajouter.
+                        </p>
+                        <a href="{% url 'genealogy:person_create' %}" target="_blank" 
+                           class="inline-flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium">
+                            <i data-feather="plus" class="w-4 h-4"></i>
+                            Ajouter une nouvelle personne
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section: Type d'union -->
+            <div class="space-y-6 mb-8">
+                <h3 class="font-serif text-lg font-semibold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <i data-feather="bookmark" class="w-5 h-5 text-brand-primary"></i>
+                    Type d'union
+                </h3>
+                
+                <div>
+                    <label for="{{ form.partnership_type.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Type d'union *
+                    </label>
+                    {{ form.partnership_type }}
+                    {% if form.partnership_type.errors %}
+                        <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <i data-feather="alert-circle" class="w-4 h-4"></i>
+                            {{ form.partnership_type.errors.0 }}
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Descriptions des types d'union -->
+                    <div class="mt-3 space-y-2 text-xs">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-3" id="marriage-desc">
+                            <div class="flex items-center gap-2 font-medium text-green-800 mb-1">
+                                <i data-feather="heart" class="w-4 h-4"></i>
+                                Mariage
+                            </div>
+                            <p class="text-green-700">
+                                Union officielle célébrée civilement et/ou religieusement.
+                            </p>
+                        </div>
+                        
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 hidden" id="partnership-desc">
+                            <div class="flex items-center gap-2 font-medium text-blue-800 mb-1">
+                                <i data-feather="home" class="w-4 h-4"></i>
+                                Union libre
+                            </div>
+                            <p class="text-blue-700">
+                                Vie commune sans formalisation légale du mariage.
+                            </p>
+                        </div>
+                        
+                        <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 hidden" id="engagement-desc">
+                            <div class="flex items-center gap-2 font-medium text-yellow-800 mb-1">
+                                <i data-feather="gift" class="w-4 h-4"></i>
+                                Fiançailles
+                            </div>
+                            <p class="text-yellow-700">
+                                Promesse de mariage, engagement officiel avant l'union.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section: Dates et lieu -->
+            <div class="space-y-6 mb-8">
+                <h3 class="font-serif text-lg font-semibold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <i data-feather="calendar" class="w-5 h-5 text-brand-primary"></i>
+                    Dates et lieu
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Date de début -->
+                    <div>
+                        <label for="{{ form.start_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Date de mariage/union
+                        </label>
+                        {{ form.start_date }}
+                        {% if form.start_date.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.start_date.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Date de fin -->
+                    <div>
+                        <label for="{{ form.end_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Date de fin d'union
+                            <span class="text-xs text-gray-500">(divorce, séparation)</span>
+                        </label>
+                        {{ form.end_date }}
+                        {% if form.end_date.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.end_date.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Lieu -->
+                <div>
+                    <label for="{{ form.location.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Lieu de célébration
+                    </label>
+                    {{ form.location }}
+                    {% if form.location.errors %}
+                        <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <i data-feather="alert-circle" class="w-4 h-4"></i>
+                            {{ form.location.errors.0 }}
+                        </div>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500">Ville, pays, nom de l'église ou de la mairie...</p>
+                </div>
+            </div>
+
+            <!-- Section: Notes additionnelles -->
+            <div class="space-y-6 mb-8">
+                <h3 class="font-serif text-lg font-semibold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <i data-feather="edit-3" class="w-5 h-5 text-brand-primary"></i>
+                    Notes additionnelles
+                </h3>
+                
+                <div>
+                    <label for="{{ form.notes.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Notes et commentaires
+                    </label>
+                    {{ form.notes }}
+                    {% if form.notes.errors %}
+                        <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <i data-feather="alert-circle" class="w-4 h-4"></i>
+                            {{ form.notes.errors.0 }}
+                        </div>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500">
+                        Circonstances particulières, témoins, anecdotes sur l'union...
+                    </p>
+                </div>
+            </div>
+
+            <!-- Messages d'erreur non-field -->
+            {% if form.non_field_errors %}
+            <div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                <div class="flex items-center gap-2 text-red-800 font-medium mb-2">
+                    <i data-feather="alert-triangle" class="w-4 h-4"></i>
+                    Erreurs de validation
+                </div>
+                {% for error in form.non_field_errors %}
+                <p class="text-sm text-red-700">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Aperçu de l'union -->
+            <div class="mb-8 bg-stone-50 border border-stone-200 rounded-lg p-4">
+                <h4 class="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <i data-feather="eye" class="w-4 h-4 text-gray-400"></i>
+                    Aperçu de l'union
+                </h4>
+                <div class="flex items-center justify-center">
+                    <div class="text-center">
+                        <div class="w-16 h-16 rounded-full bg-gradient-to-br 
+                            {% if person.gender == 'M' %}from-blue-500 to-blue-600{% elif person.gender == 'F' %}from-pink-500 to-pink-600{% else %}from-gray-500 to-gray-600{% endif %} 
+                            flex items-center justify-center text-white font-bold mx-auto mb-2">
+                            {{ person.first_name.0 }}{{ person.last_name.0 }}
+                        </div>
+                        <p class="font-medium text-sm">{{ person.get_full_name }}</p>
+                    </div>
+                    
+                    <div class="mx-8 flex items-center">
+                        <i data-feather="heart" class="w-8 h-8 text-brand-accent"></i>
+                    </div>
+                    
+                    <div class="text-center">
+                        <div class="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold mx-auto mb-2" id="partner-preview">
+                            <i data-feather="user" class="w-8 h-8"></i>
+                        </div>
+                        <p class="font-medium text-sm text-gray-500" id="partner-name">Sélectionner un conjoint</p>
+                    </div>
+                </div>
+                
+                <div class="text-center mt-4 text-sm text-gray-600">
+                    <p id="union-type">Type d'union : <span class="font-medium">Mariage</span></p>
+                    <p id="union-date" class="hidden">Date : <span class="font-medium"></span></p>
+                    <p id="union-location" class="hidden">Lieu : <span class="font-medium"></span></p>
+                </div>
+            </div>
+
+            <!-- Boutons d'action -->
+            <div class="flex gap-4 pt-6 border-t border-gray-200">
+                <button type="submit" class="bg-brand-primary text-white px-8 py-3 rounded-lg font-medium hover:bg-green-800 transition flex items-center gap-2" id="saveButton">
+                    <span id="saveText">Enregistrer l'union</span>
+                    <i data-feather="heart" class="w-4 h-4" id="saveIcon"></i>
+                    <div class="hidden animate-spin rounded-full h-4 w-4 border-b-2 border-white" id="saveSpinner"></div>
+                </button>
+                
+                <a href="{% url 'genealogy:person_detail' person.id %}" 
+                   class="bg-gray-100 text-gray-700 px-8 py-3 rounded-lg font-medium hover:bg-gray-200 transition flex items-center gap-2">
+                    <i data-feather="x" class="w-4 h-4"></i>
+                    Annuler
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+// Mise à jour des descriptions selon le type d'union
+document.getElementById('{{ form.partnership_type.id_for_label }}').addEventListener('change', function() {
+    const value = this.value;
+    const descriptions = ['marriage-desc', 'partnership-desc', 'engagement-desc'];
+    
+    descriptions.forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+    });
+    
+    if (value) {
+        document.getElementById(`${value}-desc`).classList.remove('hidden');
+        document.getElementById('union-type').querySelector('span').textContent = this.options[this.selectedIndex].text;
+    }
+});
+
+// Mise à jour de l'aperçu du conjoint
+document.getElementById('{{ form.person2.id_for_label }}').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const preview = document.getElementById('partner-preview');
+    const name = document.getElementById('partner-name');
+    
+    if (this.value && selectedOption.text !== '---------') {
+        const names = selectedOption.text.split(' ');
+        const initials = names.length >= 2 ? names[0][0] + names[names.length-1][0] : names[0][0];
+        
+        preview.innerHTML = `<span class="text-white font-bold">${initials}</span>`;
+        preview.className = 'w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center text-white font-bold mx-auto mb-2';
+        name.textContent = selectedOption.text;
+        name.classList.remove('text-gray-500');
+        name.classList.add('text-gray-900');
+    } else {
+        preview.innerHTML = '<i data-feather="user" class="w-8 h-8"></i>';
+        preview.className = 'w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold mx-auto mb-2';
+        name.textContent = 'Sélectionner un conjoint';
+        name.classList.remove('text-gray-900');
+        name.classList.add('text-gray-500');
+    }
+    feather.replace();
+});
+
+// Mise à jour de l'aperçu des dates
+document.getElementById('{{ form.start_date.id_for_label }}').addEventListener('change', function() {
+    const dateElement = document.getElementById('union-date');
+    if (this.value) {
+        const date = new Date(this.value);
+        dateElement.querySelector('span').textContent = date.toLocaleDateString('fr-FR');
+        dateElement.classList.remove('hidden');
+    } else {
+        dateElement.classList.add('hidden');
+    }
+});
+
+// Mise à jour de l'aperçu du lieu
+document.getElementById('{{ form.location.id_for_label }}').addEventListener('change', function() {
+    const locationElement = document.getElementById('union-location');
+    if (this.value.trim()) {
+        locationElement.querySelector('span').textContent = this.value;
+        locationElement.classList.remove('hidden');
+    } else {
+        locationElement.classList.add('hidden');
+    }
+});
+
+// Validation des dates
+const startDate = document.getElementById('{{ form.start_date.id_for_label }}');
+const endDate = document.getElementById('{{ form.end_date.id_for_label }}');
+
+function validateDates() {
+    if (startDate.value && endDate.value) {
+        const start = new Date(startDate.value);
+        const end = new Date(endDate.value);
+        
+        if (start >= end) {
+            endDate.style.borderColor = '#ef4444';
+            showDateError('La date de fin doit être postérieure à la date de début.');
+        } else {
+            endDate.style.borderColor = '#d1d5db';
+            hideDateError();
+        }
+    }
+}
+
+function showDateError(message) {
+    let errorDiv = document.getElementById('dateError');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.id = 'dateError';
+        errorDiv.className = 'mt-1 text-sm text-red-600 flex items-center gap-1';
+        errorDiv.innerHTML = `<i data-feather="alert-circle" class="w-4 h-4"></i>${message}`;
+        endDate.parentNode.appendChild(errorDiv);
+        feather.replace();
+    }
+}
+
+function hideDateError() {
+    const errorDiv = document.getElementById('dateError');
+    if (errorDiv) {
+        errorDiv.remove();
+    }
+}
+
+if (startDate && endDate) {
+    startDate.addEventListener('change', validateDates);
+    endDate.addEventListener('change', validateDates);
+}
+
+// Form submission loading state
+document.getElementById('partnershipForm').addEventListener('submit', function() {
+    const button = document.getElementById('saveButton');
+    const text = document.getElementById('saveText');
+    const icon = document.getElementById('saveIcon');
+    const spinner = document.getElementById('saveSpinner');
+    
+    button.disabled = true;
+    text.textContent = 'Enregistrement...';
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+});
+</script>
+
+{% endblock %}

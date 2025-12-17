@@ -1,0 +1,536 @@
+{% extends 'base/dashboard.html' %}
+
+{% block title %}{% if person %}Modifier {{ person.get_full_name }}{% else %}Ajouter un membre{% endif %} - Famille KANYAMUKENGE{% endblock %}
+{% block page_title %}{% if person %}Modifier un membre{% else %}Ajouter un membre{% endif %}{% endblock %}
+
+{% block dashboard_content %}
+<div class="max-w-4xl mx-auto">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+        <a href="{% url 'genealogy:dashboard' %}" class="hover:text-brand-primary transition">Tableau de bord</a>
+        <i data-feather="chevron-right" class="w-4 h-4"></i>
+        {% if person %}
+        <a href="{% url 'genealogy:person_detail' person.id %}" class="hover:text-brand-primary transition">{{ person.get_full_name }}</a>
+        <i data-feather="chevron-right" class="w-4 h-4"></i>
+        <span class="text-brand-primary">Modifier</span>
+        {% else %}
+        <span class="text-brand-primary">Nouveau membre</span>
+        {% endif %}
+    </nav>
+
+    <!-- Header -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6 mb-8">
+        <div class="flex items-center gap-4">
+            <div class="w-16 h-16 bg-gradient-to-br from-brand-primary to-green-700 rounded-full flex items-center justify-center">
+                <i data-feather="{% if person %}edit-2{% else %}user-plus{% endif %}" class="w-8 h-8 text-white"></i>
+            </div>
+            <div>
+                <h1 class="font-serif text-2xl font-bold text-brand-primary">
+                    {% if person %}Modifier {{ person.get_full_name }}{% else %}Ajouter un nouveau membre{% endif %}
+                </h1>
+                <p class="text-gray-600">
+                    {% if person %}Mettez à jour les informations de ce membre de la famille.{% else %}Enregistrez un nouveau membre dans l'arbre généalogique.{% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulaire -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm">
+        <div class="px-6 py-4 border-b border-gray-100">
+            <h2 class="font-serif text-xl font-bold text-gray-900">Informations personnelles</h2>
+        </div>
+        
+        <form method="post" enctype="multipart/form-data" class="p-6" id="personForm">
+            {% csrf_token %}
+            
+            <!-- Section: Identité -->
+            <div class="space-y-6 mb-8">
+                <h3 class="font-serif text-lg font-semibold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <i data-feather="user" class="w-5 h-5 text-brand-primary"></i>
+                    Identité
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Prénom -->
+                    <div>
+                        <label for="{{ form.first_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Prénom *
+                        </label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.first_name.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Nom de famille -->
+                    <div>
+                        <label for="{{ form.last_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Nom de famille *
+                        </label>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.last_name.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Nom de jeune fille -->
+                    <div>
+                        <label for="{{ form.maiden_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Nom de jeune fille
+                            <span class="text-xs text-gray-500">(pour les femmes mariées)</span>
+                        </label>
+                        {{ form.maiden_name }}
+                        {% if form.maiden_name.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.maiden_name.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Genre -->
+                    <div>
+                        <label for="{{ form.gender.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Genre *
+                        </label>
+                        {{ form.gender }}
+                        {% if form.gender.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.gender.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Photo -->
+                <div>
+                    <label for="{{ form.photo.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Photo
+                    </label>
+                    <div class="flex items-start gap-6">
+                        <!-- Prévisualisation photo actuelle -->
+                        {% if person and person.photo %}
+                        <div class="flex-shrink-0">
+                            <img src="{{ person.photo.url }}" alt="{{ person.get_full_name }}" 
+                                 class="w-24 h-24 rounded-full object-cover border-4 border-gray-200" id="currentPhoto">
+                            <p class="text-xs text-gray-500 text-center mt-2">Photo actuelle</p>
+                        </div>
+                        {% endif %}
+                        
+                        <!-- Upload nouvelle photo -->
+                        <div class="flex-1">
+                            <div class="border-2 border-dashed border-gray-300 rounded-lg p-6 hover:border-brand-primary transition" id="photoDropZone">
+                                <div class="text-center">
+                                    <i data-feather="camera" class="w-12 h-12 mx-auto text-gray-400 mb-4"></i>
+                                    <div class="text-sm text-gray-600">
+                                        <label for="{{ form.photo.id_for_label }}" class="font-medium text-brand-primary hover:text-green-800 cursor-pointer">
+                                            Choisir une photo
+                                        </label>
+                                        <p class="mt-1">ou glisser-déposer ici</p>
+                                    </div>
+                                    <p class="text-xs text-gray-500 mt-2">PNG, JPG jusqu'à 10MB</p>
+                                </div>
+                            </div>
+                            {{ form.photo }}
+                            {% if form.photo.errors %}
+                                <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                    <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                    {{ form.photo.errors.0 }}
+                                </div>
+                            {% endif %}
+                            
+                            <!-- Prévisualisation nouvelle photo -->
+                            <div id="newPhotoPreview" class="hidden mt-4">
+                                <img id="previewImage" class="w-24 h-24 rounded-full object-cover border-4 border-brand-primary" alt="Prévisualisation">
+                                <p class="text-xs text-brand-primary text-center mt-2">Nouvelle photo</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section: Dates et lieux -->
+            <div class="space-y-6 mb-8">
+                <h3 class="font-serif text-lg font-semibold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <i data-feather="calendar" class="w-5 h-5 text-brand-primary"></i>
+                    Dates et lieux
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Date de naissance -->
+                    <div>
+                        <label for="{{ form.birth_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Date de naissance
+                        </label>
+                        {{ form.birth_date }}
+                        {% if form.birth_date.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.birth_date.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Lieu de naissance -->
+                    <div>
+                        <label for="{{ form.birth_place.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Lieu de naissance
+                        </label>
+                        {{ form.birth_place }}
+                        {% if form.birth_place.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.birth_place.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Date de décès -->
+                    <div>
+                        <label for="{{ form.death_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Date de décès
+                            <span class="text-xs text-gray-500">(si applicable)</span>
+                        </label>
+                        {{ form.death_date }}
+                        {% if form.death_date.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.death_date.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Lieu de décès -->
+                    <div>
+                        <label for="{{ form.death_place.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Lieu de décès
+                            <span class="text-xs text-gray-500">(si applicable)</span>
+                        </label>
+                        {{ form.death_place }}
+                        {% if form.death_place.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.death_place.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Section: Informations supplémentaires -->
+            <div class="space-y-6 mb-8">
+                <h3 class="font-serif text-lg font-semibold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <i data-feather="info" class="w-5 h-5 text-brand-primary"></i>
+                    Informations supplémentaires
+                </h3>
+                
+                <!-- Profession -->
+                <div>
+                    <label for="{{ form.profession.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Profession
+                    </label>
+                    {{ form.profession }}
+                    {% if form.profession.errors %}
+                        <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <i data-feather="alert-circle" class="w-4 h-4"></i>
+                            {{ form.profession.errors.0 }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Éducation -->
+                <div>
+                    <label for="{{ form.education.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Formation et éducation
+                    </label>
+                    {{ form.education }}
+                    {% if form.education.errors %}
+                        <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <i data-feather="alert-circle" class="w-4 h-4"></i>
+                            {{ form.education.errors.0 }}
+                        </div>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500">Diplômes, formations, écoles fréquentées...</p>
+                </div>
+
+                <!-- Biographie -->
+                <div>
+                    <label for="{{ form.biography.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Biographie
+                    </label>
+                    {{ form.biography }}
+                    {% if form.biography.errors %}
+                        <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <i data-feather="alert-circle" class="w-4 h-4"></i>
+                            {{ form.biography.errors.0 }}
+                        </div>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500">Histoire de vie, anecdotes, souvenirs marquants...</p>
+                </div>
+            </div>
+
+            <!-- Section: Paramètres de confidentialité -->
+            <div class="space-y-6 mb-8">
+                <h3 class="font-serif text-lg font-semibold text-gray-900 flex items-center gap-2 pb-2 border-b border-gray-200">
+                    <i data-feather="shield" class="w-5 h-5 text-brand-primary"></i>
+                    Confidentialité
+                </h3>
+                
+                <div>
+                    <label for="{{ form.visibility.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        Niveau de visibilité
+                    </label>
+                    {{ form.visibility }}
+                    {% if form.visibility.errors %}
+                        <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <i data-feather="alert-circle" class="w-4 h-4"></i>
+                            {{ form.visibility.errors.0 }}
+                        </div>
+                    {% endif %}
+                    
+                    <!-- Explications des niveaux -->
+                    <div class="mt-3 space-y-2 text-xs">
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                            <div class="flex items-center gap-2 font-medium text-green-800 mb-1">
+                                <i data-feather="globe" class="w-4 h-4"></i>
+                                Public
+                            </div>
+                            <p class="text-green-700">
+                                Visible par tous les visiteurs du site, même non connectés.
+                            </p>
+                        </div>
+                        
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <div class="flex items-center gap-2 font-medium text-blue-800 mb-1">
+                                <i data-feather="users" class="w-4 h-4"></i>
+                                Famille seulement
+                            </div>
+                            <p class="text-blue-700">
+                                Visible uniquement par les membres connectés de la famille.
+                            </p>
+                        </div>
+                        
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                            <div class="flex items-center gap-2 font-medium text-gray-800 mb-1">
+                                <i data-feather="lock" class="w-4 h-4"></i>
+                                Privé
+                            </div>
+                            <p class="text-gray-700">
+                                Visible uniquement par vous et les administrateurs.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages d'erreur non-field -->
+            {% if form.non_field_errors %}
+            <div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                <div class="flex items-center gap-2 text-red-800 font-medium mb-2">
+                    <i data-feather="alert-triangle" class="w-4 h-4"></i>
+                    Erreurs de validation
+                </div>
+                {% for error in form.non_field_errors %}
+                <p class="text-sm text-red-700">{{ error }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <!-- Boutons d'action -->
+            <div class="flex gap-4 pt-6 border-t border-gray-200">
+                <button type="submit" class="bg-brand-primary text-white px-8 py-3 rounded-lg font-medium hover:bg-green-800 transition flex items-center gap-2" id="saveButton">
+                    <span id="saveText">{% if person %}Enregistrer les modifications{% else %}Créer le membre{% endif %}</span>
+                    <i data-feather="save" class="w-4 h-4" id="saveIcon"></i>
+                    <div class="hidden animate-spin rounded-full h-4 w-4 border-b-2 border-white" id="saveSpinner"></div>
+                </button>
+                
+                <a href="{% if person %}{% url 'genealogy:person_detail' person.id %}{% else %}{% url 'genealogy:dashboard' %}{% endif %}" 
+                   class="bg-gray-100 text-gray-700 px-8 py-3 rounded-lg font-medium hover:bg-gray-200 transition flex items-center gap-2">
+                    <i data-feather="x" class="w-4 h-4"></i>
+                    Annuler
+                </a>
+                
+                {% if person %}
+                <button type="button" onclick="showDeleteModal()" class="bg-red-100 text-red-700 px-6 py-3 rounded-lg font-medium hover:bg-red-200 transition flex items-center gap-2 ml-auto">
+                    <i data-feather="trash-2" class="w-4 h-4"></i>
+                    Supprimer
+                </button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal de confirmation de suppression -->
+{% if person %}
+<div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <i data-feather="trash-2" class="w-6 h-6 text-red-600"></i>
+            </div>
+            <div>
+                <h3 class="font-serif text-lg font-bold text-gray-900">Supprimer {{ person.get_full_name }}</h3>
+                <p class="text-sm text-gray-600">Cette action est irréversible</p>
+            </div>
+        </div>
+        
+        <p class="text-gray-700 mb-6">
+            Êtes-vous sûr de vouloir supprimer définitivement {{ person.get_full_name }} de l'arbre généalogique ? 
+            Toutes les relations familiales seront également supprimées.
+        </p>
+        
+        <div class="flex gap-3">
+            <button onclick="confirmDelete()" class="flex-1 bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition font-medium">
+                Oui, supprimer
+            </button>
+            <button onclick="hideDeleteModal()" class="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition">
+                Annuler
+            </button>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+// Prévisualisation de la photo
+document.getElementById('{{ form.photo.id_for_label }}').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const preview = document.getElementById('newPhotoPreview');
+            const img = document.getElementById('previewImage');
+            img.src = e.target.result;
+            preview.classList.remove('hidden');
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+// Drag & drop pour la photo
+const dropZone = document.getElementById('photoDropZone');
+const fileInput = document.getElementById('{{ form.photo.id_for_label }}');
+
+dropZone.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    dropZone.classList.add('border-brand-primary', 'bg-brand-primary/5');
+});
+
+dropZone.addEventListener('dragleave', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('border-brand-primary', 'bg-brand-primary/5');
+});
+
+dropZone.addEventListener('drop', function(e) {
+    e.preventDefault();
+    dropZone.classList.remove('border-brand-primary', 'bg-brand-primary/5');
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        fileInput.files = files;
+        fileInput.dispatchEvent(new Event('change'));
+    }
+});
+
+// Validation en temps réel des dates
+const birthDate = document.getElementById('{{ form.birth_date.id_for_label }}');
+const deathDate = document.getElementById('{{ form.death_date.id_for_label }}');
+
+function validateDates() {
+    if (birthDate.value && deathDate.value) {
+        const birth = new Date(birthDate.value);
+        const death = new Date(deathDate.value);
+        
+        if (birth >= death) {
+            deathDate.style.borderColor = '#ef4444';
+            showDateError('La date de décès doit être postérieure à la date de naissance.');
+        } else {
+            deathDate.style.borderColor = '#d1d5db';
+            hideDateError();
+        }
+    }
+}
+
+function showDateError(message) {
+    let errorDiv = document.getElementById('dateError');
+    if (!errorDiv) {
+        errorDiv = document.createElement('div');
+        errorDiv.id = 'dateError';
+        errorDiv.className = 'mt-1 text-sm text-red-600 flex items-center gap-1';
+        errorDiv.innerHTML = `<i data-feather="alert-circle" class="w-4 h-4"></i>${message}`;
+        deathDate.parentNode.appendChild(errorDiv);
+        feather.replace();
+    }
+}
+
+function hideDateError() {
+    const errorDiv = document.getElementById('dateError');
+    if (errorDiv) {
+        errorDiv.remove();
+    }
+}
+
+if (birthDate && deathDate) {
+    birthDate.addEventListener('change', validateDates);
+    deathDate.addEventListener('change', validateDates);
+}
+
+// Form submission loading state
+document.getElementById('personForm').addEventListener('submit', function() {
+    const button = document.getElementById('saveButton');
+    const text = document.getElementById('saveText');
+    const icon = document.getElementById('saveIcon');
+    const spinner = document.getElementById('saveSpinner');
+    
+    button.disabled = true;
+    text.textContent = 'Enregistrement...';
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+});
+
+// Modal de suppression
+{% if person %}
+function showDeleteModal() {
+    document.getElementById('deleteModal').classList.remove('hidden');
+}
+
+function hideDeleteModal() {
+    document.getElementById('deleteModal').classList.add('hidden');
+}
+
+function confirmDelete() {
+    // Créer un formulaire de suppression
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{% url "genealogy:person_delete" person.id %}';
+    
+    const csrf = document.createElement('input');
+    csrf.type = 'hidden';
+    csrf.name = 'csrfmiddlewaretoken';
+    csrf.value = document.querySelector('[name=csrfmiddlewaretoken]').value;
+    
+    form.appendChild(csrf);
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// Fermer la modal en cliquant à l'extérieur
+document.getElementById('deleteModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        hideDeleteModal();
+    }
+});
+{% endif %}
+</script>
+
+{% endblock %}

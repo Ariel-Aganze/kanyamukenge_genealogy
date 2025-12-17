@@ -1,0 +1,375 @@
+{% extends 'base/dashboard.html' %}
+
+{% block title %}Ajouter un enfant - Famille KANYAMUKENGE{% endblock %}
+{% block page_title %}Ajouter un enfant{% endblock %}
+
+{% block dashboard_content %}
+<div class="max-w-4xl mx-auto">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+        <a href="{% url 'genealogy:dashboard' %}" class="hover:text-brand-primary transition">Tableau de bord</a>
+        <i data-feather="chevron-right" class="w-4 h-4"></i>
+        <a href="{% url 'genealogy:person_detail' parent.id %}" class="hover:text-brand-primary transition">{{ parent.get_full_name }}</a>
+        <i data-feather="chevron-right" class="w-4 h-4"></i>
+        <span class="text-brand-primary">Ajouter un enfant</span>
+    </nav>
+
+    <!-- Header -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6 mb-8">
+        <div class="flex items-center gap-4">
+            <div class="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center">
+                <i data-feather="users" class="w-8 h-8 text-white"></i>
+            </div>
+            <div class="flex-1">
+                <h1 class="font-serif text-2xl font-bold text-brand-primary">Ajouter un enfant</h1>
+                <p class="text-gray-600">Enregistrez un enfant pour <strong>{{ parent.get_full_name }}</strong></p>
+            </div>
+            <!-- Parent concerné -->
+            <div class="text-right">
+                <div class="flex items-center gap-3">
+                    <div class="w-12 h-12 rounded-full bg-gradient-to-br 
+                        {% if parent.gender == 'M' %}from-blue-500 to-blue-600{% elif parent.gender == 'F' %}from-pink-500 to-pink-600{% else %}from-gray-500 to-gray-600{% endif %} 
+                        flex items-center justify-center text-white font-bold">
+                        {{ parent.first_name.0 }}{{ parent.last_name.0 }}
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-900">{{ parent.get_full_name }}</p>
+                        <p class="text-xs text-gray-500">Parent</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Options de création -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        
+        <!-- Option 1: Sélectionner une personne existante -->
+        <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i data-feather="search" class="w-5 h-5 text-blue-600"></i>
+                </div>
+                <h3 class="font-serif text-lg font-bold text-gray-900">Personne existante</h3>
+            </div>
+            <p class="text-gray-600 mb-4">Sélectionnez une personne déjà enregistrée dans l'arbre généalogique.</p>
+            
+            <form method="post" id="existingChildForm">
+                {% csrf_token %}
+                
+                <div class="space-y-4">
+                    <!-- Sélection de l'enfant -->
+                    <div>
+                        <label for="{{ form.child.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Sélectionner l'enfant *
+                        </label>
+                        <div class="relative">
+                            {{ form.child }}
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                <i data-feather="chevron-down" class="w-5 h-5 text-gray-400"></i>
+                            </div>
+                        </div>
+                        {% if form.child.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.child.errors.0 }}
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Type de relation -->
+                    <div>
+                        <label for="{{ form.relationship_type.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Type de relation *
+                        </label>
+                        {{ form.relationship_type }}
+                        {% if form.relationship_type.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.relationship_type.errors.0 }}
+                            </div>
+                        {% endif %}
+                        
+                        <!-- Descriptions des types de relations -->
+                        <div class="mt-3 space-y-2 text-xs">
+                            <div class="bg-green-50 border border-green-200 rounded-lg p-3" id="biological-desc">
+                                <div class="flex items-center gap-2 font-medium text-green-800 mb-1">
+                                    <i data-feather="heart" class="w-4 h-4"></i>
+                                    Biologique
+                                </div>
+                                <p class="text-green-700">Enfant biologique né de ce parent.</p>
+                            </div>
+                            
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 hidden" id="adopted-desc">
+                                <div class="flex items-center gap-2 font-medium text-blue-800 mb-1">
+                                    <i data-feather="home" class="w-4 h-4"></i>
+                                    Adopté
+                                </div>
+                                <p class="text-blue-700">Enfant adopté légalement par ce parent.</p>
+                            </div>
+                            
+                            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 hidden" id="stepchild-desc">
+                                <div class="flex items-center gap-2 font-medium text-yellow-800 mb-1">
+                                    <i data-feather="users" class="w-4 h-4"></i>
+                                    Beau-fils/Belle-fille
+                                </div>
+                                <p class="text-yellow-700">Enfant du conjoint, devenu beau-fils ou belle-fille.</p>
+                            </div>
+                            
+                            <div class="bg-purple-50 border border-purple-200 rounded-lg p-3 hidden" id="foster-desc">
+                                <div class="flex items-center gap-2 font-medium text-purple-800 mb-1">
+                                    <i data-feather="shield" class="w-4 h-4"></i>
+                                    Famille d'accueil
+                                </div>
+                                <p class="text-purple-700">Enfant placé temporairement en famille d'accueil.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div>
+                        <label for="{{ form.notes.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Notes additionnelles
+                        </label>
+                        {{ form.notes }}
+                        {% if form.notes.errors %}
+                            <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                                <i data-feather="alert-circle" class="w-4 h-4"></i>
+                                {{ form.notes.errors.0 }}
+                            </div>
+                        {% endif %}
+                        <p class="mt-1 text-xs text-gray-500">
+                            Circonstances particulières, date d'adoption, etc.
+                        </p>
+                    </div>
+
+                    <!-- Messages d'erreur non-field -->
+                    {% if form.non_field_errors %}
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex items-center gap-2 text-red-800 font-medium mb-2">
+                            <i data-feather="alert-triangle" class="w-4 h-4"></i>
+                            Erreurs de validation
+                        </div>
+                        {% for error in form.non_field_errors %}
+                        <p class="text-sm text-red-700">{{ error }}</p>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <!-- Bouton -->
+                    <button type="submit" class="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2" id="existingButton">
+                        <span id="existingText">Ajouter cette relation</span>
+                        <i data-feather="link" class="w-4 h-4" id="existingIcon"></i>
+                        <div class="hidden animate-spin rounded-full h-4 w-4 border-b-2 border-white" id="existingSpinner"></div>
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Option 2: Créer une nouvelle personne -->
+        <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 bg-brand-accent/20 rounded-lg flex items-center justify-center">
+                    <i data-feather="plus" class="w-5 h-5 text-brand-accent"></i>
+                </div>
+                <h3 class="font-serif text-lg font-bold text-gray-900">Nouvelle personne</h3>
+            </div>
+            <p class="text-gray-600 mb-4">Créez directement un nouvel enfant dans l'arbre généalogique.</p>
+            
+            <div class="space-y-4">
+                <div class="bg-brand-accent/10 border border-brand-accent/20 rounded-lg p-4 text-center">
+                    <i data-feather="user-plus" class="w-12 h-12 mx-auto text-brand-accent mb-3"></i>
+                    <p class="text-sm font-medium text-gray-900 mb-2">Créer un nouvel enfant</p>
+                    <p class="text-xs text-gray-600 mb-4">
+                        Cette option vous redirigera vers le formulaire de création d'une nouvelle personne.
+                        La relation parent-enfant sera automatiquement créée.
+                    </p>
+                    <a href="{% url 'genealogy:person_create' %}?parent={{ parent.id }}" 
+                       class="w-full bg-brand-accent text-white py-3 px-4 rounded-lg font-medium hover:bg-amber-800 transition flex items-center justify-center gap-2">
+                        <i data-feather="plus" class="w-4 h-4"></i>
+                        Créer un nouvel enfant
+                    </a>
+                </div>
+                
+                <!-- Avantages de cette option -->
+                <div class="space-y-2 text-xs text-gray-600">
+                    <div class="flex items-center gap-2">
+                        <i data-feather="check" class="w-3 h-3 text-green-500"></i>
+                        <span>Formulaire complet avec toutes les informations</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i data-feather="check" class="w-3 h-3 text-green-500"></i>
+                        <span>Relation automatiquement établie</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <i data-feather="check" class="w-3 h-3 text-green-500"></i>
+                        <span>Possibilité d'ajouter photo et biographie</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Aperçu de la relation -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6 mb-6">
+        <h3 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <i data-feather="eye" class="w-5 h-5 text-gray-400"></i>
+            Aperçu de la relation
+        </h3>
+        
+        <div class="flex items-center justify-center">
+            <!-- Parent -->
+            <div class="text-center">
+                <div class="w-16 h-16 rounded-full bg-gradient-to-br 
+                    {% if parent.gender == 'M' %}from-blue-500 to-blue-600{% elif parent.gender == 'F' %}from-pink-500 to-pink-600{% else %}from-gray-500 to-gray-600{% endif %} 
+                    flex items-center justify-center text-white font-bold mx-auto mb-2">
+                    {{ parent.first_name.0 }}{{ parent.last_name.0 }}
+                </div>
+                <p class="font-medium text-sm">{{ parent.get_full_name }}</p>
+                <p class="text-xs text-gray-500">Parent</p>
+            </div>
+            
+            <!-- Flèche de relation -->
+            <div class="mx-8 flex flex-col items-center">
+                <div class="w-16 h-8 flex items-center justify-center">
+                    <i data-feather="arrow-down" class="w-6 h-6 text-green-600"></i>
+                </div>
+                <p class="text-xs text-gray-500" id="relation-type">Enfant biologique</p>
+            </div>
+            
+            <!-- Enfant -->
+            <div class="text-center">
+                <div class="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold mx-auto mb-2" id="child-preview">
+                    <i data-feather="user" class="w-8 h-8"></i>
+                </div>
+                <p class="font-medium text-sm text-gray-500" id="child-name">Sélectionner un enfant</p>
+                <p class="text-xs text-gray-500">Enfant</p>
+            </div>
+        </div>
+        
+        <!-- Informations supplémentaires -->
+        <div class="mt-6 text-center">
+            <div class="inline-flex items-center gap-4 text-sm text-gray-600 bg-stone-50 rounded-lg px-4 py-2">
+                <div class="flex items-center gap-1">
+                    <i data-feather="calendar" class="w-4 h-4"></i>
+                    <span>Relation créée aujourd'hui</span>
+                </div>
+                <div class="flex items-center gap-1">
+                    <i data-feather="user" class="w-4 h-4"></i>
+                    <span>Par {{ user.get_full_name }}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Enfants existants du parent -->
+    {% if parent.get_children %}
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+        <h3 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <i data-feather="users" class="w-5 h-5 text-gray-400"></i>
+            Enfants actuels de {{ parent.get_full_name }}
+        </h3>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for child in parent.get_children %}
+            <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-brand-primary transition group">
+                <div class="w-10 h-10 rounded-full bg-gradient-to-br 
+                    {% if child.gender == 'M' %}from-blue-500 to-blue-600{% elif child.gender == 'F' %}from-pink-500 to-pink-600{% else %}from-gray-500 to-gray-600{% endif %} 
+                    flex items-center justify-center text-white font-bold text-sm">
+                    {{ child.first_name.0 }}{{ child.last_name.0 }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="font-medium text-gray-900 group-hover:text-brand-primary transition">
+                        <a href="{% url 'genealogy:person_detail' child.id %}">{{ child.get_full_name }}</a>
+                    </p>
+                    {% if child.birth_date %}
+                    <p class="text-xs text-gray-500">{{ child.birth_date|date:"Y" }}</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Boutons d'action -->
+    <div class="flex gap-4 mt-8">
+        <a href="{% url 'genealogy:person_detail' parent.id %}" 
+           class="bg-gray-100 text-gray-700 px-8 py-3 rounded-lg font-medium hover:bg-gray-200 transition flex items-center gap-2">
+            <i data-feather="arrow-left" class="w-4 h-4"></i>
+            Retour au profil
+        </a>
+        
+        <a href="{% url 'genealogy:family_tree_person' parent.id %}" 
+           class="bg-brand-primary text-white px-8 py-3 rounded-lg font-medium hover:bg-green-800 transition flex items-center gap-2">
+            <i data-feather="share-2" class="w-4 h-4"></i>
+            Voir dans l'arbre
+        </a>
+    </div>
+</div>
+
+<script>
+// Mise à jour des descriptions selon le type de relation
+document.getElementById('{{ form.relationship_type.id_for_label }}').addEventListener('change', function() {
+    const value = this.value;
+    const descriptions = ['biological-desc', 'adopted-desc', 'stepchild-desc', 'foster-desc'];
+    
+    descriptions.forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+    });
+    
+    if (value) {
+        document.getElementById(`${value}-desc`).classList.remove('hidden');
+        document.getElementById('relation-type').textContent = this.options[this.selectedIndex].text;
+    }
+});
+
+// Mise à jour de l'aperçu de l'enfant
+document.getElementById('{{ form.child.id_for_label }}').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const preview = document.getElementById('child-preview');
+    const name = document.getElementById('child-name');
+    
+    if (this.value && selectedOption.text !== '---------') {
+        const names = selectedOption.text.split(' ');
+        const initials = names.length >= 2 ? names[0][0] + names[names.length-1][0] : names[0][0];
+        
+        preview.innerHTML = `<span class="text-white font-bold">${initials}</span>`;
+        preview.className = 'w-16 h-16 rounded-full bg-gradient-to-br from-green-500 to-green-600 flex items-center justify-center text-white font-bold mx-auto mb-2';
+        name.textContent = selectedOption.text;
+        name.classList.remove('text-gray-500');
+        name.classList.add('text-gray-900');
+    } else {
+        preview.innerHTML = '<i data-feather="user" class="w-8 h-8"></i>';
+        preview.className = 'w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold mx-auto mb-2';
+        name.textContent = 'Sélectionner un enfant';
+        name.classList.remove('text-gray-900');
+        name.classList.add('text-gray-500');
+    }
+    feather.replace();
+});
+
+// Form submission loading state
+document.getElementById('existingChildForm').addEventListener('submit', function() {
+    const button = document.getElementById('existingButton');
+    const text = document.getElementById('existingText');
+    const icon = document.getElementById('existingIcon');
+    const spinner = document.getElementById('existingSpinner');
+    
+    button.disabled = true;
+    text.textContent = 'Ajout en cours...';
+    icon.classList.add('hidden');
+    spinner.classList.remove('hidden');
+});
+
+// Initialiser les descriptions
+document.addEventListener('DOMContentLoaded', function() {
+    const relationSelect = document.getElementById('{{ form.relationship_type.id_for_label }}');
+    if (relationSelect.value) {
+        relationSelect.dispatchEvent(new Event('change'));
+    }
+});
+</script>
+
+{% endblock %}

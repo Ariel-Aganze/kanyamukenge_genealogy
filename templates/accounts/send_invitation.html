@@ -1,0 +1,248 @@
+{% extends 'base/dashboard.html' %}
+
+{% block title %}Inviter un membre - Famille KANYAMUKENGE{% endblock %}
+{% block page_title %}Inviter un nouveau membre{% endblock %}
+
+{% block dashboard_content %}
+<div class="max-w-2xl mx-auto">
+    
+    <!-- Header -->
+    <div class="mb-8">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-brand-accent/10 rounded-lg flex items-center justify-center">
+                <i data-feather="mail" class="w-6 h-6 text-brand-accent"></i>
+            </div>
+            <div>
+                <h1 class="font-serif text-2xl font-bold text-brand-primary">Inviter un nouveau membre</h1>
+                <p class="text-gray-600 text-sm">Envoyez une invitation pour rejoindre l'arbre généalogique familial</p>
+            </div>
+        </div>
+        
+        <!-- Back link -->
+        <nav class="flex items-center gap-2 text-sm text-gray-500">
+            <a href="{% url 'genealogy:dashboard' %}" class="hover:text-brand-primary transition">Tableau de bord</a>
+            <i data-feather="chevron-right" class="w-4 h-4"></i>
+            <span class="text-brand-primary">Inviter membre</span>
+        </nav>
+    </div>
+
+    <!-- Invitation Form -->
+    <div class="bg-white rounded-xl shadow-sm border border-brand-border p-8">
+        <form method="post" class="space-y-6" id="invitationForm">
+            {% csrf_token %}
+            
+            <!-- Email Field -->
+            <div>
+                <label for="{{ form.email.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i data-feather="mail" class="w-4 h-4 inline mr-1"></i>
+                    Adresse email *
+                </label>
+                {{ form.email }}
+                {% if form.email.errors %}
+                    <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                        <i data-feather="alert-circle" class="w-4 h-4"></i>
+                        {{ form.email.errors.0 }}
+                    </div>
+                {% endif %}
+                <p class="mt-1 text-xs text-gray-500">
+                    L'invitation sera envoyée à cette adresse email.
+                </p>
+            </div>
+
+            <!-- Role Selection -->
+            <div>
+                <label for="{{ form.role.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i data-feather="shield" class="w-4 h-4 inline mr-1"></i>
+                    Rôle dans la famille *
+                </label>
+                {{ form.role }}
+                {% if form.role.errors %}
+                    <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                        <i data-feather="alert-circle" class="w-4 h-4"></i>
+                        {{ form.role.errors.0 }}
+                    </div>
+                {% endif %}
+                
+                <!-- Role descriptions -->
+                <div class="mt-3 space-y-2 text-xs">
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-3" id="role-admin" style="display: none;">
+                        <div class="flex items-center gap-2 font-medium text-green-800 mb-1">
+                            <i data-feather="crown" class="w-4 h-4"></i>
+                            Administrateur
+                        </div>
+                        <p class="text-green-700">
+                            Accès complet au système, peut inviter d'autres membres, valider les modifications,
+                            gérer les utilisateurs et accéder aux journaux d'audit.
+                        </p>
+                    </div>
+                    
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-3" id="role-member">
+                        <div class="flex items-center gap-2 font-medium text-blue-800 mb-1">
+                            <i data-feather="user" class="w-4 h-4"></i>
+                            Membre de la famille
+                        </div>
+                        <p class="text-blue-700">
+                            Peut ajouter ses propres enfants, modifier ses informations personnelles,
+                            voir l'arbre généalogique et proposer des modifications.
+                        </p>
+                    </div>
+                    
+                    <div class="bg-gray-50 border border-gray-200 rounded-lg p-3" id="role-visitor" style="display: none;">
+                        <div class="flex items-center gap-2 font-medium text-gray-800 mb-1">
+                            <i data-feather="eye" class="w-4 h-4"></i>
+                            Visiteur
+                        </div>
+                        <p class="text-gray-700">
+                            Accès en lecture seule aux informations publiques et familiales de l'arbre.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Personal Message (optional) -->
+            <div>
+                <label for="personal-message" class="block text-sm font-medium text-gray-700 mb-2">
+                    <i data-feather="message-square" class="w-4 h-4 inline mr-1"></i>
+                    Message personnel (optionnel)
+                </label>
+                <textarea id="personal-message" name="personal_message" rows="4" 
+                    class="w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent resize-none"
+                    placeholder="Ajoutez un message personnel à cette invitation..."></textarea>
+                <p class="mt-1 text-xs text-gray-500">
+                    Ce message sera inclus dans l'email d'invitation.
+                </p>
+            </div>
+
+            <!-- Email Preview -->
+            <div class="bg-stone-50 border border-stone-200 rounded-lg p-4">
+                <h3 class="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                    <i data-feather="eye" class="w-4 h-4"></i>
+                    Aperçu de l'email d'invitation
+                </h3>
+                <div class="bg-white border border-gray-200 rounded-lg p-4 text-sm">
+                    <div class="border-b border-gray-200 pb-2 mb-3">
+                        <p class="text-xs text-gray-500">À : <span id="preview-email" class="font-mono">email@example.com</span></p>
+                        <p class="font-medium">Invitation - Famille KANYAMUKENGE</p>
+                    </div>
+                    <div class="space-y-2 text-gray-700">
+                        <p>Bonjour,</p>
+                        <p>Vous êtes invité(e) à rejoindre l'arbre généalogique de la famille KANYAMUKENGE par <strong>{{ user.get_full_name }}</strong>.</p>
+                        <div id="personal-message-preview" class="bg-blue-50 border-l-4 border-blue-300 pl-3 italic" style="display: none;">
+                            <!-- Le message personnel apparaîtra ici -->
+                        </div>
+                        <p>Pour créer votre compte et accéder à l'arbre familial, cliquez sur le lien ci-dessous :</p>
+                        <p class="text-blue-600 underline">[Lien d'inscription unique]</p>
+                        <p class="text-xs text-gray-500 mt-3">Cette invitation expire dans 7 jours.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-4">
+                <button type="submit" class="flex-1 bg-brand-primary text-white py-3 px-4 rounded-lg font-medium hover:bg-green-800 focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 transition duration-200 flex items-center justify-center gap-2" id="sendButton">
+                    <span id="sendText">Envoyer l'invitation</span>
+                    <i data-feather="send" class="w-4 h-4" id="sendIcon"></i>
+                    <div class="hidden animate-spin rounded-full h-4 w-4 border-b-2 border-white" id="sendSpinner"></div>
+                </button>
+                
+                <a href="{% url 'genealogy:manage_users' %}" class="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition duration-200 flex items-center gap-2">
+                    <i data-feather="x" class="w-4 h-4"></i>
+                    Annuler
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Recent Invitations -->
+    <div class="mt-8 bg-white rounded-xl shadow-sm border border-brand-border p-6">
+        <h3 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <i data-feather="history" class="w-5 h-5 text-gray-400"></i>
+            Invitations récentes
+        </h3>
+        
+        <div class="space-y-3">
+            <!-- Cette section pourrait être alimentée par des données du backend -->
+            <div class="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-2 h-2 bg-yellow-400 rounded-full"></div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">marie@example.com</p>
+                        <p class="text-xs text-gray-500">Envoyée il y a 2 jours - En attente</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">En attente</span>
+                    <button class="text-gray-400 hover:text-brand-accent transition">
+                        <i data-feather="more-horizontal" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="text-center py-4 text-gray-500 text-sm">
+                <i data-feather="mail" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                Aucune invitation récente
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Update email preview
+    const emailInput = document.getElementById('{{ form.email.id_for_label }}');
+    const previewEmail = document.getElementById('preview-email');
+    
+    emailInput.addEventListener('input', function() {
+        previewEmail.textContent = this.value || 'email@example.com';
+    });
+    
+    // Update personal message preview
+    const messageInput = document.getElementById('personal-message');
+    const messagePreview = document.getElementById('personal-message-preview');
+    
+    messageInput.addEventListener('input', function() {
+        if (this.value.trim()) {
+            messagePreview.textContent = this.value;
+            messagePreview.style.display = 'block';
+        } else {
+            messagePreview.style.display = 'none';
+        }
+    });
+    
+    // Role selection handler
+    const roleSelect = document.getElementById('{{ form.role.id_for_label }}');
+    const roleDescriptions = {
+        'admin': document.getElementById('role-admin'),
+        'member': document.getElementById('role-member'),
+        'visitor': document.getElementById('role-visitor')
+    };
+    
+    function updateRoleDescription() {
+        // Hide all descriptions
+        Object.values(roleDescriptions).forEach(desc => {
+            if (desc) desc.style.display = 'none';
+        });
+        
+        // Show selected role description
+        const selectedRole = roleSelect.value;
+        if (roleDescriptions[selectedRole]) {
+            roleDescriptions[selectedRole].style.display = 'block';
+        }
+    }
+    
+    roleSelect.addEventListener('change', updateRoleDescription);
+    updateRoleDescription(); // Initialize
+    
+    // Form submission
+    document.getElementById('invitationForm').addEventListener('submit', function() {
+        const button = document.getElementById('sendButton');
+        const text = document.getElementById('sendText');
+        const icon = document.getElementById('sendIcon');
+        const spinner = document.getElementById('sendSpinner');
+        
+        button.disabled = true;
+        text.textContent = 'Envoi en cours...';
+        icon.classList.add('hidden');
+        spinner.classList.remove('hidden');
+    });
+</script>
+{% endblock %}

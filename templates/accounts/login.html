@@ -1,0 +1,172 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Connexion - Famille KANYAMUKENGE{% endblock %}
+
+{% block content %}
+<div class="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-bg to-stone-100 py-12 px-4 sm:px-6 lg:px-8">
+    <div class="max-w-md w-full space-y-8">
+        <!-- Header -->
+        <div class="text-center">
+            <div class="mx-auto w-20 h-20 bg-brand-primary rounded-full flex items-center justify-center mb-4">
+                <i data-feather="users" class="w-10 h-10 text-white"></i>
+            </div>
+            <h1 class="font-serif text-3xl font-bold text-brand-primary mb-2">
+                Famille KANYAMUKENGE
+            </h1>
+            <p class="text-gray-600 text-sm">
+                Connectez-vous à l'espace familial privé
+            </p>
+        </div>
+
+        <!-- Login Form -->
+        <div class="bg-white rounded-2xl shadow-xl p-8 border border-brand-border">
+            <h2 class="font-serif text-2xl font-bold text-gray-900 mb-6 text-center">
+                Connexion
+            </h2>
+
+            <form method="post" class="space-y-6" id="loginForm">
+                {% csrf_token %}
+                
+                <!-- Email Field -->
+                <div>
+                    <label for="{{ form.username.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        <i data-feather="mail" class="w-4 h-4 inline mr-1"></i>
+                        Adresse email
+                    </label>
+                    {{ form.username }}
+                    {% if form.username.errors %}
+                        <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <i data-feather="alert-circle" class="w-4 h-4"></i>
+                            {{ form.username.errors.0 }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Password Field -->
+                <div>
+                    <label for="{{ form.password.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        <i data-feather="lock" class="w-4 h-4 inline mr-1"></i>
+                        Mot de passe
+                    </label>
+                    <div class="relative">
+                        {{ form.password }}
+                        <button type="button" class="absolute inset-y-0 right-0 pr-3 flex items-center" onclick="togglePasswordVisibility()">
+                            <i data-feather="eye" class="w-5 h-5 text-gray-400" id="password-eye"></i>
+                        </button>
+                    </div>
+                    {% if form.password.errors %}
+                        <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
+                            <i data-feather="alert-circle" class="w-4 h-4"></i>
+                            {{ form.password.errors.0 }}
+                        </div>
+                    {% endif %}
+                </div>
+
+                <!-- Non-field errors -->
+                {% if form.non_field_errors %}
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div class="flex items-center gap-2">
+                            <i data-feather="x-circle" class="w-4 h-4 text-red-500"></i>
+                            <div class="text-sm text-red-700">
+                                {% for error in form.non_field_errors %}
+                                    <p>{{ error }}</p>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+
+                <!-- Remember me (optional) -->
+                <div class="flex items-center">
+                    <input type="checkbox" id="remember-me" name="remember-me" class="h-4 w-4 text-brand-primary focus:ring-brand-primary border-gray-300 rounded">
+                    <label for="remember-me" class="ml-2 block text-sm text-gray-700">
+                        Se souvenir de moi
+                    </label>
+                </div>
+
+                <!-- Submit Button -->
+                <div>
+                    <button type="submit" class="w-full bg-brand-primary text-white py-3 px-4 rounded-lg font-medium hover:bg-green-800 focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 transition duration-200 flex items-center justify-center gap-2" id="loginButton">
+                        <span id="loginText">Se connecter</span>
+                        <i data-feather="log-in" class="w-4 h-4" id="loginIcon"></i>
+                        <div class="hidden animate-spin rounded-full h-4 w-4 border-b-2 border-white" id="loginSpinner"></div>
+                    </button>
+                </div>
+            </form>
+
+            <!-- Additional Info -->
+            <div class="mt-6 text-center">
+                <p class="text-xs text-gray-500 mb-3">
+                    Vous n'avez pas de compte ?
+                </p>
+                <p class="text-xs text-gray-400">
+                    Contactez un administrateur familial pour recevoir une invitation.
+                </p>
+                <a href="mailto:admin@kanyamukenge.family" class="text-sm text-brand-accent hover:text-brand-primary font-medium transition mt-2 inline-block">
+                    <i data-feather="mail" class="w-4 h-4 inline mr-1"></i>
+                    Contacter l'administrateur
+                </a>
+            </div>
+
+            <!-- Security Notice for Admin -->
+            <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <div class="flex items-center gap-2 mb-2">
+                    <i data-feather="shield" class="w-4 h-4 text-blue-600"></i>
+                    <p class="text-xs text-blue-800 font-medium">
+                        Sécurité renforcée
+                    </p>
+                </div>
+                <p class="text-xs text-blue-700">
+                    Les administrateurs recevront un code de vérification par email après la connexion.
+                </p>
+            </div>
+        </div>
+
+        <!-- Back to Home -->
+        <div class="text-center">
+            <a href="{% url 'genealogy:home' %}" class="text-sm text-gray-500 hover:text-brand-primary transition inline-flex items-center gap-1">
+                <i data-feather="arrow-left" class="w-4 h-4"></i>
+                Retour à l'accueil
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Toggle password visibility
+    function togglePasswordVisibility() {
+        const passwordField = document.getElementById('{{ form.password.id_for_label }}');
+        const eyeIcon = document.getElementById('password-eye');
+        
+        if (passwordField.type === 'password') {
+            passwordField.type = 'text';
+            eyeIcon.setAttribute('data-feather', 'eye-off');
+        } else {
+            passwordField.type = 'password';
+            eyeIcon.setAttribute('data-feather', 'eye');
+        }
+        feather.replace();
+    }
+    
+    // Form submission with loading state
+    document.getElementById('loginForm').addEventListener('submit', function() {
+        const button = document.getElementById('loginButton');
+        const text = document.getElementById('loginText');
+        const icon = document.getElementById('loginIcon');
+        const spinner = document.getElementById('loginSpinner');
+        
+        button.disabled = true;
+        text.textContent = 'Connexion en cours...';
+        icon.classList.add('hidden');
+        spinner.classList.remove('hidden');
+    });
+    
+    // Auto-focus on email field
+    document.addEventListener('DOMContentLoaded', function() {
+        const emailField = document.getElementById('{{ form.username.id_for_label }}');
+        if (emailField) {
+            emailField.focus();
+        }
+    });
+</script>
+{% endblock %}
