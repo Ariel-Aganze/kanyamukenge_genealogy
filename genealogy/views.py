@@ -11,6 +11,7 @@ from django.views.decorators.http import require_http_methods
 from django.views.decorators.http import require_POST
 from django.conf import settings
 import json
+from django.core.exceptions import ValidationError
 
 from .models import (
     Person, Partnership, ParentChild, ModificationProposal,
@@ -280,38 +281,60 @@ def add_partnership(request, person_id):
 def add_child(request, person_id):
     """Add a child for a person"""
     parent = get_object_or_404(Person, id=person_id)
-    
+
     if not parent.can_be_modified_by(request.user):
-        messages.error(request, "Vous n'avez pas l'autorisation de modifier cette personne.")
+        messages.error(
+            request,
+            "Vous n'avez pas l'autorisation de modifier cette personne."
+        )
         return redirect('genealogy:person_detail', person_id=parent.id)
-    
+
     if request.method == 'POST':
-        form = ParentChildForm(parent=parent, data=request.POST)
+        form = ParentChildForm(request.POST, parent=parent)
+
         if form.is_valid():
             parent_child = form.save(commit=False)
+
+            # SET REQUIRED FIELDS BEFORE VALIDATION
             parent_child.parent = parent
             parent_child.created_by = request.user
-            parent_child.save()
-            
-            create_audit_log(
-                user=request.user,
-                action='create',
-                model_name='ParentChild',
-                object_id=parent_child.id,
-                changes=form.cleaned_data,
-                request=request
-            )
-            
-            messages.success(request, 'Enfant ajouté avec succès.')
-            return redirect('genealogy:person_detail', person_id=parent.id)
+
+            try:
+                parent_child.full_clean()
+                parent_child.save()
+
+                create_audit_log(
+                    user=request.user,
+                    action='create',
+                    model_name='ParentChild',
+                    object_id=parent_child.id,
+                    changes=form.cleaned_data,
+                    request=request
+                )
+
+                messages.success(request, "Enfant ajouté avec succès.")
+                return redirect('genealogy:person_detail', person_id=parent.id)
+
+            except ValidationError as e:
+                if hasattr(e, 'message_dict'):
+                    for field, error_list in e.message_dict.items():  # ✅ FIX
+                        for error in error_list:
+                            form.add_error(field, error)
+                else:
+                    form.add_error(None, e.message)
+
     else:
         form = ParentChildForm(parent=parent)
-    
-    return render(request, 'genealogy/parent_child_form.html', {
-        'form': form,
-        'parent': parent,
-        'title': f'Ajouter un enfant pour {parent.get_full_name()}'
-    })
+
+    return render(
+        request,
+        'genealogy/parent_child_form.html',
+        {
+            'form': form,
+            'parent': parent,
+            'title': f'Ajouter un enfant pour {parent.get_full_name()}',
+        }
+    )
 
 
 @login_required
@@ -599,68 +622,81 @@ def can_view_person(user, person):
 
 
 def get_family_tree_data(center_person, user):
-    """Generate family tree data structure for visualization"""
-    def get_person_data(person, include_details=True):
-        if not can_view_person(user, person):
+    """Generate complete family tree data structure for genealogical visualization"""
+    
+    def safe_get_person_data(person):
+        """Safely get person data with null checks"""
+        if not person:
+            return None
+            
+        try:
+            age = None
+            if person.birth_date and not person.is_deceased:
+                from datetime import date
+                today = date.today()
+                age = today.year - person.birth_date.year
+                if today < person.birth_date.replace(year=today.year):
+                    age -= 1
+            
             return {
                 'id': person.id,
-                'name': 'Personne privée',
-                'gender': person.gender,
-                'private': True
+                'name': person.get_full_name() or f"Person {person.id}",
+                'gender': getattr(person, 'gender', 'U') or 'U',
+                'birth_year': person.birth_date.year if person.birth_date else None,
+                'death_year': person.death_date.year if person.death_date else None,
+                'age': age,
+                'is_deceased': getattr(person, 'is_deceased', False),
+                'profession': getattr(person, 'profession', '') or '',
+                'birth_place': getattr(person, 'birth_place', '') or '',
+                'private': False
             }
-        
-        data = {
-            'id': person.id,
-            'name': person.get_full_name(),
-            'gender': person.gender,
-            'birth_year': person.birth_date.year if person.birth_date else None,
-            'death_year': person.death_date.year if person.death_date else None,
-            'is_deceased': person.is_deceased,
-            'photo_url': person.photo.url if person.photo else None,
-            'private': False
-        }
-        
-        if include_details:
-            data.update({
-                'birth_place': person.birth_place,
-                'profession': person.profession,
-                'biography': person.biography[:200] + '...' if person.biography and len(person.biography) > 200 else person.biography,
-            })
-        
-        return data
+        except Exception as e:
+            print(f"Error getting person data for {person}: {e}")
+            return None
     
-    # Build tree structure
-    tree = {
-        'person': get_person_data(center_person),
-        'parents': [],
-        'partners': [],
-        'children': []
+    def build_complete_tree():
+        """Build the complete family tree starting from all root ancestors"""
+        
+        # Find all people in the database
+        from genealogy.models import Person
+        all_people = Person.objects.all()
+        
+        # Build family structure
+        families = {}  # family_id -> {parents: [], children: []}
+        individuals = {}  # person_id -> person_data
+        
+        # Process all people
+        for person in all_people:
+            person_data = safe_get_person_data(person)
+            if person_data:
+                individuals[person.id] = person_data
+                
+                # Get family relationships
+                try:
+                    parents = person.get_parents()
+                    partners = person.get_partners()
+                    children = person.get_children()
+                    
+                    # Store relationships
+                    person_data['parents'] = [p.id for p in parents]
+                    person_data['partners'] = [p.id for p in partners] 
+                    person_data['children'] = [c.id for c in children]
+                    
+                except Exception as e:
+                    print(f"Error getting relationships for {person}: {e}")
+                    person_data['parents'] = []
+                    person_data['partners'] = []
+                    person_data['children'] = []
+        
+        return individuals
+    
+    # Build the complete tree structure
+    family_tree = build_complete_tree()
+    
+    return {
+        'individuals': family_tree,
+        'root_person_id': center_person.id if center_person else None
     }
-    
-    # Add parents
-    for parent in center_person.get_parents():
-        parent_data = get_person_data(parent, include_details=False)
-        # Add parent's partner if exists
-        parent_partners = parent.get_partners()
-        if parent_partners:
-            parent_data['partner'] = get_person_data(parent_partners[0], include_details=False)
-        tree['parents'].append(parent_data)
-    
-    # Add partners
-    for partner in center_person.get_partners():
-        tree['partners'].append(get_person_data(partner, include_details=False))
-    
-    # Add children
-    for child in center_person.get_children():
-        child_data = get_person_data(child, include_details=False)
-        # Add child's partner if exists and child is adult
-        if child.get_age() and child.get_age() >= 18:
-            child_partners = child.get_partners()
-            if child_partners:
-                child_data['partner'] = get_person_data(child_partners[0], include_details=False)
-        tree['children'].append(child_data)
-    
-    return tree
 
 def permission_denied_view(request, exception=None):
     return render(request, 'errors/403.html', status=403)

@@ -143,7 +143,8 @@ class ParentChildForm(forms.ModelForm):
             })
         }
 
-    def __init__(self, parent=None, *args, **kwargs):
+    def __init__(self, *args, parent=None, **kwargs):
+        # FIXED: Proper parameter handling
         super().__init__(*args, **kwargs)
         self.parent = parent
         
@@ -152,7 +153,8 @@ class ParentChildForm(forms.ModelForm):
             existing_children = [rel.child.id for rel in ParentChild.objects.filter(parent=parent)]
             self.fields['child'].queryset = Person.objects.exclude(
                 id__in=[parent.id] + existing_children
-            )
+            ).order_by('first_name', 'last_name')
+            self.fields['child'].empty_label = "Sélectionner un enfant"
 
 
 class ModificationProposalForm(forms.ModelForm):

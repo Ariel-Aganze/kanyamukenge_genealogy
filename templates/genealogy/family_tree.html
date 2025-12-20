@@ -1,31 +1,24 @@
 {% extends 'base/dashboard.html' %}
 {% load genealogy_tags %}
 
-
 {% block title %}Arbre Généalogique - Famille KANYAMUKENGE{% endblock %}
 {% block page_title %}Arbre Généalogique{% endblock %}
 
 {% block extra_head %}
-<!-- D3.js pour la visualisation -->
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <style>
     .tree-container {
         width: 100%;
-        height: 600px;
+        height: 800px;
         border: 1px solid #E7E5E4;
         border-radius: 12px;
         position: relative;
-        overflow: hidden;
-        background: linear-gradient(135deg, #FAFAF9 0%, #F5F5F4 100%);
+        overflow: auto;
+        background: #FAFAF9;
     }
     
     .tree-node {
         cursor: pointer;
-        transition: all 0.3s ease;
-    }
-    
-    .tree-node:hover {
-        transform: scale(1.05);
     }
     
     .tree-node-rect {
@@ -36,416 +29,505 @@
         ry: 8;
     }
     
+    .tree-node:hover .tree-node-rect {
+        stroke: #16a34a;
+        stroke-width: 3;
+    }
+    
     .tree-node-text {
-        font-family: 'Playfair Display', serif;
-        font-size: 12px;
+        font-family: 'Inter', sans-serif;
+        font-size: 10px;
         fill: #1F2937;
         text-anchor: middle;
         dominant-baseline: middle;
+        pointer-events: none;
     }
     
-    .tree-link {
+    .marriage-line {
+        stroke: #dc2626;
+        stroke-width: 3;
         fill: none;
+    }
+    
+    .family-line {
         stroke: #14532D;
         stroke-width: 2;
-        stroke-opacity: 0.6;
+        fill: none;
     }
     
-    .person-card {
-        backdrop-filter: blur(10px);
-        background: rgba(255, 255, 255, 0.95);
+    .generation-label {
+        font-family: 'Inter', sans-serif;
+        font-size: 12px;
+        fill: #6b7280;
+        font-weight: bold;
     }
 </style>
 {% endblock %}
 
 {% block dashboard_content %}
 <div class="max-w-full mx-auto">
-
-    <!-- Header avec contrôles -->
+    <!-- Header -->
     <div class="bg-white rounded-xl border border-brand-border p-6 mb-6 shadow-sm">
-        <div class="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div class="flex justify-between items-center">
             <div>
-                <h1 class="font-serif text-2xl font-bold text-brand-primary mb-2">Arbre généalogique interactif</h1>
-                <p class="text-gray-600">Explorez les relations familiales de la famille KANYAMUKENGE</p>
+                <h1 class="font-serif text-2xl font-bold text-brand-primary mb-2">Arbre généalogique complet</h1>
+                <p class="text-gray-600">Structure complète de la famille KANYAMUKENGE</p>
             </div>
             
-            <!-- Contrôles -->
-            <div class="flex flex-wrap gap-3">
-                <!-- Sélecteur de personne centrale -->
-                <div class="flex items-center gap-2">
-                    <label for="centerPerson" class="text-sm font-medium text-gray-700">Centrer sur :</label>
-                    <select id="centerPerson" onchange="changeCenterPerson(this.value)" class="px-3 py-2 border border-brand-border rounded-lg text-sm focus:ring-2 focus:ring-brand-primary focus:border-transparent">
-                        {% for person in all_people %}
-                        <option value="{{ person.id }}" {% if person == center_person %}selected{% endif %}>
-                            {{ person.get_full_name }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                
-                <!-- Boutons d'action -->
-                <button onclick="zoomIn()" class="px-3 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition text-sm flex items-center gap-1">
-                    <i data-feather="zoom-in" class="w-4 h-4"></i>
-                    Zoom +
-                </button>
-                
-                <button onclick="zoomOut()" class="px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm flex items-center gap-1">
-                    <i data-feather="zoom-out" class="w-4 h-4"></i>
-                    Zoom -
-                </button>
-                
-                <button onclick="resetView()" class="px-3 py-2 bg-brand-accent text-white rounded-lg hover:bg-amber-800 transition text-sm flex items-center gap-1">
-                    <i data-feather="home" class="w-4 h-4"></i>
+            <div class="flex gap-3">
+                <button onclick="resetView()" class="px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition text-sm">
+                    <i data-feather="home" class="w-4 h-4 inline mr-1"></i>
                     Recentrer
                 </button>
+                
+                <button onclick="expandTree()" class="px-4 py-2 bg-brand-accent text-white rounded-lg hover:bg-amber-800 transition text-sm">
+                    <i data-feather="maximize" class="w-4 h-4 inline mr-1"></i>
+                    Agrandir
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Conteneur principal avec arbre et panneau latéral -->
-    <div class="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        
-        <!-- Arbre généalogique (3/4 de l'espace) -->
-        <div class="xl:col-span-3">
-            <div class="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
-                <div class="tree-container" id="treeContainer">
-                    <svg id="familyTreeSvg" width="100%" height="100%"></svg>
-                    
-                    <!-- Loading indicator -->
-                    <div id="treeLoading" class="absolute inset-0 flex items-center justify-center bg-white/90">
-                        <div class="text-center">
-                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary mx-auto mb-4"></div>
-                            <p class="text-gray-600">Chargement de l'arbre...</p>
-                        </div>
-                    </div>
-                    
-                    <!-- Overlay pour les contrôles -->
-                    <div class="absolute top-4 left-4 flex gap-2">
-                        <div class="bg-white/90 backdrop-blur-sm rounded-lg p-2 shadow-sm">
-                            <p class="text-xs text-gray-600">Cliquez sur une personne pour plus d'infos</p>
-                        </div>
-                    </div>
-                    
-                    <!-- Légende -->
-                    <div class="absolute bottom-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-sm">
-                        <h4 class="text-xs font-semibold text-gray-700 mb-2">Légende</h4>
-                        <div class="space-y-1 text-xs">
-                            <div class="flex items-center gap-2">
-                                <div class="w-3 h-3 bg-blue-500 rounded"></div>
-                                <span class="text-gray-600">Homme</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="w-3 h-3 bg-pink-500 rounded"></div>
-                                <span class="text-gray-600">Femme</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <div class="w-3 h-3 bg-gray-400 rounded"></div>
-                                <span class="text-gray-600">Non spécifié</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Panneau d'information (1/4 de l'espace) -->
-        <div class="xl:col-span-1">
-            <!-- Personne sélectionnée -->
-            <div id="personInfo" class="bg-white rounded-xl border border-brand-border p-6 shadow-sm mb-6">
+    <!-- Tree Container -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
+        <div class="tree-container" id="treeContainer">
+            <svg id="familyTreeSvg" width="100%" height="100%"></svg>
+            
+            <!-- Loading indicator -->
+            <div id="treeLoading" class="absolute inset-0 flex items-center justify-center bg-white/90">
                 <div class="text-center">
-                    <div class="w-16 h-16 bg-gradient-to-br from-brand-primary to-green-700 rounded-full flex items-center justify-center text-white text-xl font-serif font-bold mx-auto mb-4">
-                        {{ center_person.first_name.0 }}{{ center_person.last_name.0 }}
-                    </div>
-                    <h3 class="font-serif text-lg font-bold text-gray-900 mb-1">{{ center_person.get_full_name }}</h3>
-                    <p class="text-sm text-gray-600 mb-3">
-                        {% if center_person.birth_date %}
-                            Né{{ center_person.gender|yesno:",,e" }} le {{ center_person.birth_date|date:"d F Y" }}
-                        {% endif %}
-                        {% if center_person.birth_place %}
-                            à {{ center_person.birth_place }}
-                        {% endif %}
-                    </p>
-                    
-                    {% if center_person.get_age %}
-                    <div class="inline-flex items-center gap-1 bg-brand-primary/10 text-brand-primary px-3 py-1 rounded-full text-sm mb-4">
-                        <i data-feather="calendar" class="w-4 h-4"></i>
-                        {{ center_person.get_age }} ans
-                    </div>
-                    {% endif %}
-                    
-                    <div class="space-y-2">
-                        <a href="{% url 'genealogy:person_detail' center_person.id %}" class="block w-full bg-brand-primary text-white py-2 px-4 rounded-lg hover:bg-green-800 transition text-sm font-medium">
-                            Voir la fiche complète
-                        </a>
-                        
-                        {% can_modify_person center_person user as can_modify %}
-                        {% if can_modify %}
-                            <a href="{% url 'genealogy:person_edit' center_person.id %}">Modifier</a>
-                        {% endif %}
-                    </div>
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary mx-auto mb-4"></div>
+                    <p class="text-gray-600">Construction de l'arbre généalogique...</p>
                 </div>
             </div>
             
-            <!-- Statistiques de la branche -->
-            <div class="bg-white rounded-xl border border-brand-border p-6 shadow-sm mb-6">
-                <h4 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <i data-feather="bar-chart-2" class="w-5 h-5 text-gray-400"></i>
-                    Statistiques de la branche
-                </h4>
-                
-                <div class="space-y-3">
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm text-gray-600">Parents</span>
-                        <span class="font-semibold text-brand-primary">{{ center_person.get_parents|length }}</span>
+            <!-- Legend -->
+            <div class="absolute bottom-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-sm border">
+                <h4 class="text-xs font-semibold text-gray-700 mb-2">Légende</h4>
+                <div class="space-y-1 text-xs">
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 bg-blue-100 border border-blue-400 rounded"></div>
+                        <span class="text-gray-600">Homme</span>
                     </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm text-gray-600">Enfants</span>
-                        <span class="font-semibold text-brand-primary">{{ center_person.get_children|length }}</span>
+                    <div class="flex items-center gap-2">
+                        <div class="w-3 h-3 bg-pink-100 border border-pink-400 rounded"></div>
+                        <span class="text-gray-600">Femme</span>
                     </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm text-gray-600">Conjoints</span>
-                        <span class="font-semibold text-brand-primary">{{ center_person.get_partners|length }}</span>
+                    <div class="flex items-center gap-2">
+                        <div class="w-6 h-0.5 bg-red-600"></div>
+                        <span class="text-gray-600">Mariage</span>
                     </div>
-                    <div class="flex justify-between items-center">
-                        <span class="text-sm text-gray-600">Frères/Sœurs</span>
-                        <span class="font-semibold text-brand-primary">{{ center_person.get_siblings|length }}</span>
+                    <div class="flex items-center gap-2">
+                        <div class="w-6 h-0.5 bg-green-700"></div>
+                        <span class="text-gray-600">Filiation</span>
                     </div>
                 </div>
             </div>
-            
-            <!-- Actions rapides -->
-            <div class="bg-white rounded-xl border border-brand-border p-6 shadow-sm">
-                <h4 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                    <i data-feather="zap" class="w-5 h-5 text-gray-400"></i>
-                    Actions rapides
-                </h4>
-                
-                <div class="space-y-2">
-                    {% if can_modify %}
-                    <a href="{% url 'genealogy:add_child' center_person.id %}" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
-                        <i data-feather="plus" class="w-4 h-4 text-brand-accent"></i>
-                        Ajouter un enfant
-                    </a>
-                    
-                    <a href="{% url 'genealogy:add_partnership' center_person.id %}" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
-                        <i data-feather="heart" class="w-4 h-4 text-brand-accent"></i>
-                        Ajouter un conjoint
-                    </a>
-                    {% endif %}
-                    
-                    <a href="{% url 'genealogy:propose_modification' center_person.id %}" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
-                        <i data-feather="edit-2" class="w-4 h-4 text-brand-accent"></i>
-                        Proposer une modification
-                    </a>
-                    
-                    <a href="{% url 'genealogy:search' %}" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
-                        <i data-feather="search" class="w-4 h-4 text-brand-accent"></i>
-                        Rechercher une personne
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal pour afficher les détails d'une personne -->
-<div id="personModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
-    <div class="person-card rounded-xl max-w-md w-full p-6 border border-brand-border">
-        <div class="flex justify-between items-start mb-4">
-            <h3 id="modalPersonName" class="font-serif text-xl font-bold text-gray-900"></h3>
-            <button onclick="closePersonModal()" class="text-gray-400 hover:text-gray-600">
-                <i data-feather="x" class="w-5 h-5"></i>
-            </button>
-        </div>
-        
-        <div id="modalPersonContent">
-            <!-- Contenu dynamique -->
-        </div>
-        
-        <div class="flex gap-3 mt-6">
-            <button id="modalViewButton" class="flex-1 bg-brand-primary text-white py-2 px-4 rounded-lg hover:bg-green-800 transition text-sm font-medium">
-                Voir la fiche
-            </button>
-            <button onclick="closePersonModal()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
-                Fermer
-            </button>
         </div>
     </div>
 </div>
 
 <script>
-// Variables globales
+// Global variables
 let treeData = {{ tree_data|safe }};
-let currentZoom = 1;
-let svg, g, tree, root;
+let svg, g;
+let currentScale = 1;
 
-// Initialiser l'arbre au chargement de la page
+console.log('Complete tree data loaded:', treeData);
+
+// Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    initializeTree();
+    initializeCompleteTree();
     setTimeout(() => {
-        document.getElementById('treeLoading').style.display = 'none';
-    }, 1000);
+        const loading = document.getElementById('treeLoading');
+        if (loading) loading.style.display = 'none';
+    }, 1500);
 });
 
-function initializeTree() {
+function initializeCompleteTree() {
     const container = document.getElementById('treeContainer');
     const width = container.clientWidth;
     const height = container.clientHeight;
     
-    // Nettoyer le SVG existant
+    console.log('Initializing complete tree:', width, height);
+    
+    // Clear existing SVG
     d3.select("#familyTreeSvg").selectAll("*").remove();
     
     svg = d3.select("#familyTreeSvg")
         .attr("width", width)
         .attr("height", height);
     
-    g = svg.append("g")
-        .attr("transform", `translate(${width/2},${height/2})`);
+    // Add zoom behavior
+    const zoom = d3.zoom()
+        .scaleExtent([0.1, 3])
+        .on("zoom", (event) => {
+            g.attr("transform", event.transform);
+        });
     
-    // Créer la structure de l'arbre
-    tree = d3.tree().size([width - 100, height - 100]);
+    svg.call(zoom);
     
-    // Convertir les données en hiérarchie D3
-    root = d3.hierarchy(treeData);
+    g = svg.append("g");
     
-    // Dessiner l'arbre
-    drawTree();
+    // Draw the complete family tree
+    drawCompleteGenealogyTree();
 }
 
-function drawTree() {
-    const treeLayout = tree(root);
-    
-    // Dessiner les liens
-    g.selectAll('.tree-link')
-        .data(treeLayout.links())
-        .enter()
-        .append('path')
-        .attr('class', 'tree-link')
-        .attr('d', d3.linkVertical()
-            .x(d => d.x)
-            .y(d => d.y));
-    
-    // Dessiner les nœuds
-    const nodes = g.selectAll('.tree-node')
-        .data(treeLayout.descendants())
-        .enter()
-        .append('g')
-        .attr('class', 'tree-node')
-        .attr('transform', d => `translate(${d.x},${d.y})`)
-        .on('click', function(event, d) {
-            showPersonModal(d.data);
-        });
-    
-    // Rectangles pour les nœuds
-    nodes.append('rect')
-        .attr('class', 'tree-node-rect')
-        .attr('width', 120)
-        .attr('height', 60)
-        .attr('x', -60)
-        .attr('y', -30)
-        .style('fill', d => {
-            if (d.data.private) return '#f3f4f6';
-            switch(d.data.gender) {
-                case 'M': return '#dbeafe';
-                case 'F': return '#fce7f3';
-                default: return '#f3f4f6';
-            }
-        });
-    
-    // Texte pour les noms
-    nodes.append('text')
-        .attr('class', 'tree-node-text')
-        .attr('dy', -5)
-        .text(d => {
-            if (d.data.private) return 'Personne privée';
-            const name = d.data.name;
-            return name.length > 15 ? name.substring(0, 15) + '...' : name;
-        });
-    
-    // Dates de naissance
-    nodes.append('text')
-        .attr('class', 'tree-node-text')
-        .attr('dy', 10)
-        .style('font-size', '10px')
-        .style('fill', '#6b7280')
-        .text(d => {
-            if (d.data.private) return '';
-            if (d.data.birth_year) {
-                return d.data.death_year ? `${d.data.birth_year}-${d.data.death_year}` : `*${d.data.birth_year}`;
-            }
-            return '';
-        });
-}
-
-function showPersonModal(personData) {
-    const modal = document.getElementById('personModal');
-    const nameElement = document.getElementById('modalPersonName');
-    const contentElement = document.getElementById('modalPersonContent');
-    const viewButton = document.getElementById('modalViewButton');
-    
-    nameElement.textContent = personData.private ? 'Personne privée' : personData.name;
-    
-    if (personData.private) {
-        contentElement.innerHTML = `
-            <div class="text-center py-4">
-                <i data-feather="lock" class="w-12 h-12 mx-auto text-gray-300 mb-3"></i>
-                <p class="text-gray-500">Les informations de cette personne sont privées.</p>
-            </div>
-        `;
-        viewButton.style.display = 'none';
-    } else {
-        contentElement.innerHTML = `
-            <div class="space-y-3">
-                ${personData.birth_year ? `<p class="text-sm"><strong>Naissance:</strong> ${personData.birth_year}</p>` : ''}
-                ${personData.birth_place ? `<p class="text-sm"><strong>Lieu:</strong> ${personData.birth_place}</p>` : ''}
-                ${personData.profession ? `<p class="text-sm"><strong>Profession:</strong> ${personData.profession}</p>` : ''}
-                ${personData.biography ? `<p class="text-sm"><strong>Biographie:</strong> ${personData.biography}</p>` : ''}
-            </div>
-        `;
-        viewButton.onclick = () => window.location.href = `/genealogy/person/${personData.id}/`;
-        viewButton.style.display = 'block';
+function drawCompleteGenealogyTree() {
+    if (!treeData || !treeData.individuals) {
+        showError('Aucune donnée généalogique disponible');
+        return;
     }
     
-    modal.classList.remove('hidden');
-    feather.replace();
+    const individuals = treeData.individuals;
+    console.log('Drawing tree with', Object.keys(individuals).length, 'individuals');
+    
+    // Build generation structure
+    const generations = buildGenerationStructure(individuals);
+    
+    // Calculate layout
+    const layout = calculateTreeLayout(generations);
+    
+    // Draw connections first (so they appear behind nodes)
+    drawAllConnections(layout, individuals);
+    
+    // Draw generation labels
+    drawGenerationLabels(layout);
+    
+    // Draw all person nodes
+    drawAllNodes(layout);
+    
+    console.log('Complete genealogy tree rendered');
 }
 
-function closePersonModal() {
-    document.getElementById('personModal').classList.add('hidden');
+function buildGenerationStructure(individuals) {
+    const generations = new Map(); // generation_level -> people
+    const personLevels = new Map(); // person_id -> level
+    
+    // Find root people (those with no parents)
+    const roots = [];
+    Object.values(individuals).forEach(person => {
+        if (!person.parents || person.parents.length === 0) {
+            roots.push(person);
+        }
+    });
+    
+    if (roots.length === 0) {
+        // If no clear roots, use all people
+        roots.push(...Object.values(individuals));
+    }
+    
+    // Assign generation levels using BFS
+    function assignLevels(startPeople, startLevel = 0) {
+        const queue = startPeople.map(p => ({person: p, level: startLevel}));
+        const visited = new Set();
+        
+        while (queue.length > 0) {
+            const {person, level} = queue.shift();
+            
+            if (visited.has(person.id)) continue;
+            visited.add(person.id);
+            
+            personLevels.set(person.id, level);
+            
+            if (!generations.has(level)) {
+                generations.set(level, []);
+            }
+            generations.get(level).push(person);
+            
+            // Add children to next level
+            if (person.children) {
+                person.children.forEach(childId => {
+                    const child = individuals[childId];
+                    if (child && !visited.has(childId)) {
+                        queue.push({person: child, level: level + 1});
+                    }
+                });
+            }
+        }
+    }
+    
+    assignLevels(roots);
+    
+    // Sort generations by level
+    const sortedGenerations = Array.from(generations.keys()).sort((a, b) => a - b);
+    
+    return sortedGenerations.map(level => ({
+        level,
+        people: generations.get(level) || []
+    }));
 }
 
-function changeCenterPerson(personId) {
-    window.location.href = `/genealogy/tree/${personId}/`;
+function calculateTreeLayout(generations) {
+    const nodeWidth = 130;
+    const nodeHeight = 80;
+    const horizontalSpacing = 40;
+    const verticalSpacing = 120;
+    const marriageSpacing = 20;
+    
+    const layout = [];
+    let currentY = 50;
+    
+    generations.forEach(generation => {
+        const couples = groupPeopleIntoCouples(generation.people);
+        
+        // Calculate total width needed for this generation
+        const totalWidth = couples.reduce((width, couple) => {
+            return width + (couple.length * nodeWidth) + 
+                   ((couple.length - 1) * marriageSpacing) + horizontalSpacing;
+        }, 0) - horizontalSpacing;
+        
+        let currentX = Math.max(50, (window.innerWidth - totalWidth) / 2);
+        
+        const generationLayout = {
+            level: generation.level,
+            y: currentY,
+            couples: []
+        };
+        
+        couples.forEach(couple => {
+            const coupleLayout = {
+                people: [],
+                centerX: currentX + ((couple.length * nodeWidth + (couple.length - 1) * marriageSpacing) / 2)
+            };
+            
+            couple.forEach((person, index) => {
+                const personX = currentX + (index * (nodeWidth + marriageSpacing));
+                
+                coupleLayout.people.push({
+                    ...person,
+                    x: personX,
+                    y: currentY,
+                    width: nodeWidth,
+                    height: nodeHeight
+                });
+            });
+            
+            generationLayout.couples.push(coupleLayout);
+            currentX += (couple.length * nodeWidth) + ((couple.length - 1) * marriageSpacing) + horizontalSpacing;
+        });
+        
+        layout.push(generationLayout);
+        currentY += verticalSpacing;
+    });
+    
+    return layout;
 }
 
-function zoomIn() {
-    currentZoom = Math.min(currentZoom * 1.2, 3);
-    g.transition().duration(300).attr('transform', 
-        g.attr('transform').replace(/scale\([^)]*\)/, '') + ` scale(${currentZoom})`);
+function groupPeopleIntoCouples(people) {
+    const couples = [];
+    const processed = new Set();
+    
+    people.forEach(person => {
+        if (processed.has(person.id)) return;
+        
+        const couple = [person];
+        processed.add(person.id);
+        
+        // Find partners
+        if (person.partners) {
+            person.partners.forEach(partnerId => {
+                const partner = people.find(p => p.id === partnerId);
+                if (partner && !processed.has(partnerId)) {
+                    couple.push(partner);
+                    processed.add(partnerId);
+                }
+            });
+        }
+        
+        couples.push(couple);
+    });
+    
+    return couples;
 }
 
-function zoomOut() {
-    currentZoom = Math.max(currentZoom / 1.2, 0.3);
-    g.transition().duration(300).attr('transform', 
-        g.attr('transform').replace(/scale\([^)]*\)/, '') + ` scale(${currentZoom})`);
+function drawAllConnections(layout, individuals) {
+    // Draw marriage connections
+    layout.forEach(generation => {
+        generation.couples.forEach(couple => {
+            if (couple.people.length > 1) {
+                for (let i = 0; i < couple.people.length - 1; i++) {
+                    const person1 = couple.people[i];
+                    const person2 = couple.people[i + 1];
+                    
+                    g.append('line')
+                        .attr('class', 'marriage-line')
+                        .attr('x1', person1.x + person1.width)
+                        .attr('y1', person1.y + person1.height / 2)
+                        .attr('x2', person2.x)
+                        .attr('y2', person2.y + person2.height / 2);
+                }
+            }
+        });
+    });
+    
+    // Draw parent-child connections
+    layout.forEach(generation => {
+        generation.couples.forEach(couple => {
+            // Find children in next generations
+            const allChildren = new Set();
+            couple.people.forEach(person => {
+                if (person.children) {
+                    person.children.forEach(childId => allChildren.add(childId));
+                }
+            });
+            
+            if (allChildren.size > 0) {
+                const parentCenterX = couple.centerX;
+                const parentBottomY = generation.y + 80;
+                
+                // Find children positions in layout
+                layout.forEach(childGeneration => {
+                    if (childGeneration.level > generation.level) {
+                        childGeneration.couples.forEach(childCouple => {
+                            childCouple.people.forEach(child => {
+                                if (allChildren.has(child.id)) {
+                                    const childTopY = child.y;
+                                    const childCenterX = child.x + child.width / 2;
+                                    
+                                    // Vertical line from parent to child
+                                    g.append('path')
+                                        .attr('class', 'family-line')
+                                        .attr('d', `M ${parentCenterX} ${parentBottomY} L ${parentCenterX} ${parentBottomY + 30} L ${childCenterX} ${childTopY - 30} L ${childCenterX} ${childTopY}`);
+                                }
+                            });
+                        });
+                    }
+                });
+            }
+        });
+    });
+}
+
+function drawGenerationLabels(layout) {
+    layout.forEach(generation => {
+        g.append('text')
+            .attr('class', 'generation-label')
+            .attr('x', 20)
+            .attr('y', generation.y + 40)
+            .text(`Génération ${generation.level + 1}`);
+    });
+}
+
+function drawAllNodes(layout) {
+    layout.forEach(generation => {
+        generation.couples.forEach(couple => {
+            couple.people.forEach(person => {
+                const nodeGroup = g.append('g')
+                    .attr('class', 'tree-node')
+                    .attr('transform', `translate(${person.x}, ${person.y})`)
+                    .on('click', () => {
+                        if (person.id) {
+                            window.location.href = `/person/${person.id}/`;
+                        }
+                    });
+                
+                // Rectangle
+                nodeGroup.append('rect')
+                    .attr('class', 'tree-node-rect')
+                    .attr('width', person.width)
+                    .attr('height', person.height)
+                    .attr('rx', 8)
+                    .style('fill', getPersonColor(person));
+                
+                // Name
+                nodeGroup.append('text')
+                    .attr('class', 'tree-node-text')
+                    .attr('x', person.width / 2)
+                    .attr('y', 20)
+                    .style('font-weight', 'bold')
+                    .style('font-size', '11px')
+                    .text(truncateText(person.name || 'Inconnu', 16));
+                
+                // Birth/Death years
+                if (person.birth_year) {
+                    const dateText = person.death_year 
+                        ? `${person.birth_year} - ${person.death_year}`
+                        : `*${person.birth_year}`;
+                    
+                    nodeGroup.append('text')
+                        .attr('class', 'tree-node-text')
+                        .attr('x', person.width / 2)
+                        .attr('y', 35)
+                        .style('font-size', '9px')
+                        .style('fill', '#6b7280')
+                        .text(dateText);
+                }
+                
+                // Age
+                if (person.age && !person.is_deceased) {
+                    nodeGroup.append('text')
+                        .attr('class', 'tree-node-text')
+                        .attr('x', person.width / 2)
+                        .attr('y', 50)
+                        .style('font-size', '9px')
+                        .style('fill', '#059669')
+                        .text(`${person.age} ans`);
+                }
+                
+                // Profession (if space)
+                if (person.profession) {
+                    nodeGroup.append('text')
+                        .attr('class', 'tree-node-text')
+                        .attr('x', person.width / 2)
+                        .attr('y', 65)
+                        .style('font-size', '8px')
+                        .style('fill', '#9ca3af')
+                        .text(truncateText(person.profession, 14));
+                }
+            });
+        });
+    });
+}
+
+function getPersonColor(person) {
+    switch(person.gender) {
+        case 'M': return '#dbeafe'; // Light blue for male
+        case 'F': return '#fce7f3'; // Light pink for female
+        default: return '#f3f4f6'; // Light gray for unspecified
+    }
+}
+
+function truncateText(text, maxLength) {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
 function resetView() {
-    currentZoom = 1;
-    const container = document.getElementById('treeContainer');
-    g.transition().duration(500).attr('transform', `translate(${container.clientWidth/2},${container.clientHeight/2}) scale(1)`);
+    svg.transition().duration(750).call(
+        d3.zoom().transform,
+        d3.zoomIdentity
+    );
 }
 
-// Redimensionner l'arbre lors du redimensionnement de la fenêtre
-window.addEventListener('resize', function() {
-    setTimeout(initializeTree, 100);
-});
-
-// Fermer la modal en cliquant à l'extérieur
-document.getElementById('personModal').addEventListener('click', function(e) {
-    if (e.target === this) {
-        closePersonModal();
+function expandTree() {
+    const container = document.getElementById('treeContainer');
+    if (container.style.height === '1200px') {
+        container.style.height = '800px';
+    } else {
+        container.style.height = '1200px';
     }
+    setTimeout(() => initializeCompleteTree(), 100);
+}
+
+function showError(message) {
+    const container = document.getElementById('treeContainer');
+    container.innerHTML = `
+        <div class="flex items-center justify-center h-full text-red-600 text-center">
+            <div>
+                <p class="text-lg font-semibold mb-2">Erreur</p>
+                <p class="mb-4">${message}</p>
+                <button onclick="location.reload()" class="px-4 py-2 bg-brand-primary text-white rounded-lg">
+                    Recharger
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Handle window resize
+window.addEventListener('resize', function() {
+    setTimeout(initializeCompleteTree, 200);
 });
 </script>
 
