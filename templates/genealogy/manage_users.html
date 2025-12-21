@@ -20,7 +20,7 @@
             </a>
         </div>
         
-        <!-- Statistiques rapides -->
+        <!-- Statistiques rapides avec vraies données -->
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
                 <div class="flex items-center gap-3">
@@ -28,7 +28,7 @@
                         <i data-feather="users" class="w-5 h-5 text-blue-600"></i>
                     </div>
                     <div>
-                        <div class="text-2xl font-serif font-bold text-blue-800">{{ total_users }}</div>
+                        <div class="text-2xl font-serif font-bold text-blue-800">{{ user_stats.total|default:users.count }}</div>
                         <div class="text-xs text-blue-600">Utilisateurs totaux</div>
                     </div>
                 </div>
@@ -40,7 +40,7 @@
                         <i data-feather="user-check" class="w-5 h-5 text-green-600"></i>
                     </div>
                     <div>
-                        <div class="text-2xl font-serif font-bold text-green-800">{{ active_users }}</div>
+                        <div class="text-2xl font-serif font-bold text-green-800">{{ user_stats.active|default:users.count }}</div>
                         <div class="text-xs text-green-600">Actifs</div>
                     </div>
                 </div>
@@ -52,7 +52,7 @@
                         <i data-feather="clock" class="w-5 h-5 text-yellow-600"></i>
                     </div>
                     <div>
-                        <div class="text-2xl font-serif font-bold text-yellow-800">{{ pending_proposals|length }}</div>
+                        <div class="text-2xl font-serif font-bold text-yellow-800">{{ proposal_stats.pending|default:0 }}</div>
                         <div class="text-xs text-yellow-600">Propositions</div>
                     </div>
                 </div>
@@ -64,7 +64,7 @@
                         <i data-feather="mail" class="w-5 h-5 text-purple-600"></i>
                     </div>
                     <div>
-                        <div class="text-2xl font-serif font-bold text-purple-800">{{ pending_invitations|length }}</div>
+                        <div class="text-2xl font-serif font-bold text-purple-800">{{ invitation_stats.pending|default:0 }}</div>
                         <div class="text-xs text-purple-600">Invitations</div>
                     </div>
                 </div>
@@ -72,27 +72,27 @@
         </div>
     </div>
 
-    <!-- Onglets -->
+    <!-- Onglets avec données dynamiques -->
     <div class="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden mb-8">
         <div class="border-b border-gray-200">
             <nav class="-mb-px flex">
                 <button onclick="showTab('users')" id="tab-users" 
-                        class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 border-brand-primary text-brand-primary bg-brand-primary/5">
+                        class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 {% if active_tab == 'users' or not active_tab %}border-brand-primary text-brand-primary bg-brand-primary/5{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                     <i data-feather="users" class="w-4 h-4 inline mr-2"></i>
-                    Utilisateurs ({{ users|length }})
+                    Utilisateurs ({{ user_stats.total|default:users.count }})
                 </button>
                 <button onclick="showTab('proposals')" id="tab-proposals" 
-                        class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                        class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 {% if active_tab == 'proposals' %}border-brand-primary text-brand-primary bg-brand-primary/5{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                     <i data-feather="git-pull-request" class="w-4 h-4 inline mr-2"></i>
-                    Propositions ({{ pending_proposals|length }})
+                    Propositions ({{ proposal_stats.pending|default:0 }})
                 </button>
                 <button onclick="showTab('invitations')" id="tab-invitations" 
-                        class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                        class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 {% if active_tab == 'invitations' %}border-brand-primary text-brand-primary bg-brand-primary/5{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                     <i data-feather="mail" class="w-4 h-4 inline mr-2"></i>
-                    Invitations ({{ pending_invitations|length }})
+                    Invitations ({{ invitation_stats.pending|default:0 }})
                 </button>
                 <button onclick="showTab('audit')" id="tab-audit" 
-                        class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300">
+                        class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 {% if active_tab == 'audit' %}border-brand-primary text-brand-primary bg-brand-primary/5{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
                     <i data-feather="shield" class="w-4 h-4 inline mr-2"></i>
                     Audit
                 </button>
@@ -100,7 +100,7 @@
         </div>
 
         <!-- Contenu Utilisateurs -->
-        <div id="content-users" class="tab-content p-6">
+        <div id="content-users" class="tab-content {% if active_tab != 'users' and active_tab %}hidden{% endif %} p-6">
             <div class="flex items-center justify-between mb-6">
                 <div class="flex items-center gap-4">
                     <!-- Filtres -->
@@ -130,52 +130,83 @@
             <div class="space-y-3" id="usersList">
                 {% for user in users %}
                 <div class="user-item flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:border-brand-primary transition"
-                     data-role="{{ user.role }}" data-status="{% if user.is_active %}active{% else %}inactive{% endif %}">
+                     data-role="{{ user.role }}" 
+                     data-status="{% if user.is_active %}active{% else %}inactive{% endif %}"
+                     data-user-id="{{ user.id }}"
+                     data-first-name="{{ user.first_name }}"
+                     data-last-name="{{ user.last_name }}"
+                     data-email="{{ user.email }}"
+                     data-can-add-children="{% if user.can_add_children %}true{% else %}false{% endif %}"
+                     data-can-modify-own-info="{% if user.can_modify_own_info %}true{% else %}false{% endif %}"
+                     data-can-view-private-info="{% if user.can_view_private_info %}true{% else %}false{% endif %}"
+                     data-can-export-data="{% if user.can_export_data %}true{% else %}false{% endif %}">
                     
                     <div class="flex items-center gap-4">
                         <!-- Avatar -->
                         <div class="w-12 h-12 rounded-full bg-gradient-to-br 
                             {% if user.role == 'admin' %}from-red-500 to-red-600{% elif user.role == 'member' %}from-blue-500 to-blue-600{% else %}from-gray-500 to-gray-600{% endif %} 
                             flex items-center justify-center text-white font-bold">
-                            {{ user.first_name.0|default:'U' }}{{ user.last_name.0|default:'U' }}
+                            {{ user.first_name.0 }}{{ user.last_name.0 }}
                         </div>
                         
                         <!-- Informations utilisateur -->
-                        <div>
-                            <h3 class="font-semibold text-gray-900">
-                                {{ user.get_full_name|default:user.username }}
-                                {% if user == request.user %}
-                                <span class="text-xs bg-brand-primary text-white px-2 py-0.5 rounded-full ml-2">Vous</span>
-                                {% endif %}
-                            </h3>
-                            <div class="flex items-center gap-3 text-sm text-gray-500">
-                                <span>{{ user.email }}</span>
-                                <span>•</span>
-                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium
-                                    {% if user.role == 'admin' %}bg-red-100 text-red-800{% elif user.role == 'member' %}bg-blue-100 text-blue-800{% else %}bg-gray-100 text-gray-800{% endif %}">
-                                    {% if user.role == 'admin' %}<i data-feather="shield" class="w-3 h-3"></i>{% elif user.role == 'member' %}<i data-feather="user" class="w-3 h-3"></i>{% else %}<i data-feather="eye" class="w-3 h-3"></i>{% endif %}
-                                    {{ user.get_role_display }}
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-center gap-2">
+                                <h3 class="font-medium text-gray-900 truncate">
+                                    {{ user.first_name }} {{ user.last_name }}
+                                </h3>
+                                {% if user.role == 'admin' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                    <i data-feather="shield" class="w-3 h-3 mr-1"></i>
+                                    Admin
                                 </span>
+                                {% elif user.role == 'member' %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    <i data-feather="user" class="w-3 h-3 mr-1"></i>
+                                    Membre
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                    <i data-feather="eye" class="w-3 h-3 mr-1"></i>
+                                    Visiteur
+                                </span>
+                                {% endif %}
                             </div>
-                            <div class="flex items-center gap-4 text-xs text-gray-400 mt-1">
-                                <span>Inscrit le {{ user.date_joined|date:"d/m/Y" }}</span>
-                                {% if user.last_login %}
-                                <span>• Dernière connexion {{ user.last_login|timesince }}</span>
+                            
+                            <p class="text-sm text-gray-500 truncate">{{ user.email }}</p>
+                            
+                            <!-- Permissions en résumé -->
+                            <div class="flex flex-wrap gap-1 mt-1">
+                                {% if user.can_add_children %}
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">
+                                    Ajouter
+                                </span>
+                                {% endif %}
+                                {% if user.can_view_private_info %}
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                                    Privé
+                                </span>
+                                {% endif %}
+                                {% if user.can_export_data %}
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700">
+                                    Export
+                                </span>
                                 {% endif %}
                             </div>
                         </div>
-                    </div>
-                    
-                    <!-- Actions et statut -->
-                    <div class="flex items-center gap-3">
+                        
                         <!-- Statut -->
-                        <div class="flex items-center gap-1">
+                        <div class="text-center">
                             {% if user.is_active %}
-                                <div class="w-2 h-2 bg-green-500 rounded-full"></div>
-                                <span class="text-xs text-green-600">Actif</span>
+                              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                  <div class="w-1.5 h-1.5 bg-green-500 rounded-full mr-1"></div>
+                                  Actif
+                              </span>
                             {% else %}
-                                <div class="w-2 h-2 bg-red-500 rounded-full"></div>
-                                <span class="text-xs text-red-600">Inactif</span>
+                              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                  <div class="w-1.5 h-1.5 bg-red-500 rounded-full mr-1"></div>
+                                  Inactif
+                              </span>
                             {% endif %}
                         </div>
                         
@@ -212,92 +243,130 @@
             </div>
         </div>
 
-        <!-- Contenu Propositions -->
-        <div id="content-proposals" class="tab-content hidden p-6">
-            {% if pending_proposals %}
-            <div class="space-y-4">
-                {% for proposal in pending_proposals %}
-                <div class="flex items-center justify-between p-4 border border-yellow-200 rounded-lg bg-yellow-50/50 hover:bg-yellow-50 transition">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
-                            <i data-feather="edit-3" class="w-5 h-5 text-yellow-600"></i>
-                        </div>
-                        <div>
-                            <h3 class="font-semibold text-gray-900">
-                                {{ proposal.get_field_name_display }} - {{ proposal.person.get_full_name }}
-                            </h3>
-                            <div class="flex items-center gap-3 text-sm text-gray-600">
-                                <span>Par {{ proposal.proposed_by.get_full_name }}</span>
-                                <span>•</span>
-                                <span>{{ proposal.created_at|timesince }}</span>
+        <!-- Contenu Propositions avec vraies données -->
+        <div id="content-proposals" class="tab-content {% if active_tab != 'proposals' %}hidden{% endif %} p-6">
+            {% if proposals %}
+                <div class="space-y-4">
+                    {% for proposal in proposals %}
+                    <div class="border border-gray-200 rounded-lg p-4 hover:border-brand-primary transition">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center text-sm font-bold">
+                                    {{ proposal.person.first_name.0 }}{{ proposal.person.last_name.0 }}
+                                </div>
+                                <div>
+                                    <h3 class="font-medium text-gray-900">
+                                        Modification de {{ proposal.get_field_name_display }} pour 
+                                        <span class="text-brand-primary">{{ proposal.person.get_full_name }}</span>
+                                    </h3>
+                                    <p class="text-sm text-gray-500">
+                                        Proposée par {{ proposal.proposed_by.get_full_name }} • 
+                                        {{ proposal.created_at|timesince }}
+                                    </p>
+                                    {% if proposal.new_value %}
+                                    <p class="text-sm text-gray-600 mt-1">
+                                        <span class="font-medium">Nouvelle valeur:</span> {{ proposal.new_value }}
+                                    </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-1 rounded-full text-xs font-medium
+                                    {% if proposal.status == 'pending' %}bg-yellow-100 text-yellow-800
+                                    {% elif proposal.status == 'approved' %}bg-green-100 text-green-800
+                                    {% else %}bg-red-100 text-red-800{% endif %}">
+                                    {{ proposal.get_status_display }}
+                                </span>
+                                
+                                {% if proposal.status == 'pending' %}
+                                <a href="{% url 'genealogy:review_proposal' proposal.id %}" 
+                                   class="text-sm text-brand-primary hover:text-brand-accent transition">
+                                    Examiner →
+                                </a>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
+                    {% endfor %}
                     
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full">En attente</span>
-                        <a href="{% url 'genealogy:review_proposal' proposal.id %}" 
-                           class="text-sm text-brand-accent hover:text-brand-primary font-medium flex items-center gap-1">
-                            <span>Examiner</span>
-                            <i data-feather="arrow-right" class="w-4 h-4"></i>
-                        </a>
+                    <!-- Pagination pour les propositions -->
+                    {% if proposals.has_other_pages %}
+                    <div class="flex justify-center mt-6">
+                        <div class="flex items-center gap-2">
+                            {% if proposals.has_previous %}
+                                <a href="?tab=proposals&page={{ proposals.previous_page_number }}" class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Précédent</a>
+                            {% endif %}
+                            
+                            <span class="px-3 py-2 text-sm bg-brand-primary text-white rounded-lg">{{ proposals.number }}</span>
+                            
+                            {% if proposals.has_next %}
+                                <a href="?tab=proposals&page={{ proposals.next_page_number }}" class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Suivant</a>
+                            {% endif %}
+                        </div>
                     </div>
+                    {% endif %}
                 </div>
-                {% endfor %}
-            </div>
             {% else %}
-            <div class="text-center py-12">
-                <i data-feather="check-circle" class="w-16 h-16 mx-auto text-gray-200 mb-4"></i>
-                <p class="text-gray-500">Aucune proposition en attente</p>
-            </div>
+                <div class="text-center py-12">
+                    <i data-feather="git-pull-request" class="w-16 h-16 mx-auto text-gray-200 mb-4"></i>
+                    <p class="text-gray-500">Aucune proposition en attente</p>
+                </div>
             {% endif %}
         </div>
 
-        <!-- Contenu Invitations -->
-        <div id="content-invitations" class="tab-content hidden p-6">
-            {% if pending_invitations %}
-            <div class="space-y-4">
-                {% for invitation in pending_invitations %}
-                <div class="flex items-center justify-between p-4 border border-purple-200 rounded-lg bg-purple-50/50">
-                    <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                            <i data-feather="mail" class="w-5 h-5 text-purple-600"></i>
-                        </div>
-                        <div>
-                            <h3 class="font-semibold text-gray-900">{{ invitation.email }}</h3>
-                            <div class="flex items-center gap-3 text-sm text-gray-600">
-                                <span>Invité par {{ invitation.invited_by.get_full_name }}</span>
-                                <span>•</span>
-                                <span>{{ invitation.created_at|timesince }}</span>
-                                <span>•</span>
-                                <span class="text-purple-600">{{ invitation.get_role_display }}</span>
+        <!-- Contenu Invitations avec vraies données -->
+        <div id="content-invitations" class="tab-content {% if active_tab != 'invitations' %}hidden{% endif %} p-6">
+            {% if invitations %}
+                <div class="space-y-4">
+                    {% for invitation in invitations %}
+                    <div class="border border-gray-200 rounded-lg p-4 hover:border-brand-primary transition">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                                    <i data-feather="mail" class="w-5 h-5 text-purple-600"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-medium text-gray-900">{{ invitation.email }}</h3>
+                                    <p class="text-sm text-gray-500">
+                                        Rôle: {{ invitation.get_role_display }} • 
+                                        Envoyée {{ invitation.created_at|timesince }}
+                                        {% if invitation.expires_at %} • Expire le {{ invitation.expires_at|date:"d/m/Y" }}{% endif %}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center gap-2">
+                                <span class="px-2 py-1 rounded-full text-xs font-medium
+                                    {% if invitation.is_expired %}bg-red-100 text-red-800
+                                    {% elif invitation.accepted_at %}bg-green-100 text-green-800
+                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                                    {% if invitation.is_expired %}Expirée
+                                    {% elif invitation.accepted_at %}Acceptée
+                                    {% else %}En attente{% endif %}
+                                </span>
+                                
+                                {% if invitation.is_expired %}
+                                <button onclick="resendInvitation('{{ invitation.id }}')" 
+                                        class="text-sm text-brand-primary hover:text-brand-accent transition">
+                                    Renvoyer
+                                </button>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="flex items-center gap-2">
-                        <span class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
-                            {% if invitation.is_expired %}Expirée{% else %}En attente{% endif %}
-                        </span>
-                        {% if invitation.is_expired %}
-                        <button class="text-sm text-brand-accent hover:text-brand-primary font-medium">
-                            Renvoyer
-                        </button>
-                        {% endif %}
-                    </div>
+                    {% endfor %}
                 </div>
-                {% endfor %}
-            </div>
             {% else %}
-            <div class="text-center py-12">
-                <i data-feather="mail" class="w-16 h-16 mx-auto text-gray-200 mb-4"></i>
-                <p class="text-gray-500">Aucune invitation en attente</p>
-            </div>
+                <div class="text-center py-12">
+                    <i data-feather="mail" class="w-16 h-16 mx-auto text-gray-200 mb-4"></i>
+                    <p class="text-gray-500">Aucune invitation en cours</p>
+                </div>
             {% endif %}
         </div>
 
         <!-- Contenu Audit -->
-        <div id="content-audit" class="tab-content hidden p-6">
+        <div id="content-audit" class="tab-content {% if active_tab != 'audit' %}hidden{% endif %} p-6">
             <div class="text-center">
                 <a href="{% url 'genealogy:audit_log' %}" 
                    class="inline-flex items-center gap-2 bg-brand-primary text-white px-6 py-3 rounded-lg hover:bg-green-800 transition">
@@ -369,30 +438,49 @@
     </div>
 </div>
 
+<!-- Messages de notification -->
+<div id="notification" class="fixed top-4 right-4 bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg hidden z-50">
+    <div class="flex items-center gap-2">
+        <i data-feather="check-circle" class="w-4 h-4"></i>
+        <span id="notification-message">Action réussie</span>
+    </div>
+</div>
+
 <script>
-// Gestion des onglets
+// Gestion des onglets avec support URL
 function showTab(tabName) {
-    // Hide all tab contents
+    // Update URL with tab parameter
+    const url = new URL(window.location);
+    url.searchParams.set('tab', tabName);
+    window.history.pushState({}, '', url);
+    
     document.querySelectorAll('.tab-content').forEach(content => {
         content.classList.add('hidden');
     });
     
-    // Remove active class from all tab buttons
     document.querySelectorAll('.tab-button').forEach(button => {
         button.classList.remove('border-brand-primary', 'text-brand-primary', 'bg-brand-primary/5');
         button.classList.add('border-transparent', 'text-gray-500');
     });
     
-    // Show selected tab content
     document.getElementById(`content-${tabName}`).classList.remove('hidden');
     
-    // Add active class to selected tab button
     const activeButton = document.getElementById(`tab-${tabName}`);
     activeButton.classList.add('border-brand-primary', 'text-brand-primary', 'bg-brand-primary/5');
     activeButton.classList.remove('border-transparent', 'text-gray-500');
     
     feather.replace();
 }
+
+// Initialize tab from URL parameter
+document.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const activeTab = urlParams.get('tab');
+    if (activeTab && ['users', 'proposals', 'invitations', 'audit'].includes(activeTab)) {
+        showTab(activeTab);
+    }
+    feather.replace();
+});
 
 // Filtrage des utilisateurs
 function filterUsers() {
@@ -424,8 +512,18 @@ document.getElementById('userSearch').addEventListener('input', filterUsers);
 
 // Gestion des utilisateurs
 function editUser(userId) {
-    // Récupérer les données de l'utilisateur via AJAX ou depuis les attributs data
+    const userItem = document.querySelector(`[data-user-id="${userId}"]`);
+    if (!userItem) return;
+    
+    // Populate modal with user data
     document.getElementById('editUserId').value = userId;
+    document.getElementById('editUserRole').value = userItem.dataset.role;
+    document.getElementById('editCanAddChildren').checked = userItem.dataset.canAddChildren === 'true';
+    document.getElementById('editCanModifyOwn').checked = userItem.dataset.canModifyOwnInfo === 'true';
+    document.getElementById('editCanViewPrivate').checked = userItem.dataset.canViewPrivateInfo === 'true';
+    document.getElementById('editCanExport').checked = userItem.dataset.canExportData === 'true';
+    
+    // Show modal
     document.getElementById('editUserModal').classList.remove('hidden');
 }
 
@@ -435,17 +533,60 @@ function hideEditModal() {
 
 function toggleUser(userId, activate) {
     if (confirm(`Êtes-vous sûr de vouloir ${activate ? 'activer' : 'désactiver'} cet utilisateur ?`)) {
-        // Envoyer une requête AJAX pour changer le statut
-        console.log(`Toggle user ${userId} to ${activate ? 'active' : 'inactive'}`);
+        const formData = new FormData();
+        formData.append('activate', activate);
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        
+        fetch(`{% url 'genealogy:toggle_user' 0 %}`.replace('0', userId), {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                location.reload(); // Reload to update the UI
+            } else {
+                showNotification(data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Erreur lors de la mise à jour', 'error');
+        });
     }
 }
 
 function deleteUser(userId) {
     if (confirm('Êtes-vous sûr de vouloir supprimer définitivement cet utilisateur ? Cette action est irréversible.')) {
-        // Envoyer une requête AJAX pour supprimer
-        console.log(`Delete user ${userId}`);
+        const formData = new FormData();
+        formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        
+        fetch(`{% url 'genealogy:delete_user' 0 %}`.replace('0', userId), {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showNotification(data.message, 'success');
+                location.reload(); // Reload to update the UI
+            } else {
+                showNotification(data.error, 'error');
+            }
+        })
+        .catch(error => {
+            showNotification('Erreur lors de la suppression', 'error');
+        });
     }
 }
+
+
 
 // Fermer les modals en cliquant à l'extérieur
 document.getElementById('editUserModal').addEventListener('click', function(e) {
@@ -457,10 +598,53 @@ document.getElementById('editUserModal').addEventListener('click', function(e) {
 // Soumission du formulaire d'édition
 document.getElementById('editUserForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    // Envoyer les données via AJAX
-    console.log('Save user changes');
-    hideEditModal();
+    
+    const userId = document.getElementById('editUserId').value;
+    const formData = new FormData(this);
+    
+    fetch(`{% url 'genealogy:edit_user' 0 %}`.replace('0', userId), {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+        },
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'success');
+            hideEditModal();
+            location.reload(); // Reload to update the UI
+        } else {
+            showNotification(data.error, 'error');
+        }
+    })
+    .catch(error => {
+        showNotification('Erreur lors de la sauvegarde', 'error');
+    });
 });
+
+// Fonction pour afficher les notifications
+function showNotification(message, type = 'success') {
+    const notification = document.getElementById('notification');
+    const messageSpan = document.getElementById('notification-message');
+    
+    messageSpan.textContent = message;
+    
+    if (type === 'error') {
+        notification.classList.remove('bg-green-500');
+        notification.classList.add('bg-red-500');
+    } else {
+        notification.classList.remove('bg-red-500');
+        notification.classList.add('bg-green-500');
+    }
+    
+    notification.classList.remove('hidden');
+    
+    setTimeout(() => {
+        notification.classList.add('hidden');
+    }, 3000);
+}
 </script>
 
 {% endblock %}

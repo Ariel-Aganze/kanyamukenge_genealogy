@@ -12,6 +12,8 @@ from django.views.decorators.http import require_POST
 from django.conf import settings
 import json
 from django.core.exceptions import ValidationError
+from datetime import datetime
+
 
 from .models import (
     Person, Partnership, ParentChild, ModificationProposal,
@@ -104,7 +106,7 @@ def family_tree_view(request, person_id=None):
     
     if not center_person:
         messages.info(request, "Aucune personne n'est encore enregistrée dans l'arbre familial.")
-        return redirect('dashboard' if request.user.is_authenticated else 'home')
+        return redirect('genealogy:dashboard' if request.user.is_authenticated else 'genealogy:home')
     
     # Get family tree data for the center person
     tree_data = get_family_tree_data(center_person, request.user)
@@ -128,20 +130,28 @@ def person_detail(request, person_id):
         messages.error(request, "Vous n'avez pas l'autorisation de voir cette personne.")
         return redirect('genealogy:dashboard')
     
-    # Get related information
-    parents = person.get_parents()
-    children = person.get_children()
-    partners = person.get_partners()
-    siblings = person.get_siblings()
+    # Get related data
+    try:
+        parents = person.get_parents()
+        children = person.get_children()
+        partners = person.get_partners()
+        siblings = person.get_siblings()
+    except:
+        parents = []
+        children = []
+        partners = []
+        siblings = []
     
-    # Get documents and events
-    documents = person.documents.all()
-    events = person.events.all().order_by('-date')
+    # Documents and events
+    documents = person.documents.all() if hasattr(person, 'documents') else []
+    events = person.events.all().order_by('-date') if hasattr(person, 'events') else []
     
-    # Get modification proposals for this person
-    proposals = ModificationProposal.objects.filter(
-        person=person
-    ).order_by('-created_at')
+    # Modification proposals for this person (if admin)
+    proposals = []
+    if request.user.role == 'admin':
+        proposals = ModificationProposal.objects.filter(
+            person=person, status='pending'
+        ).order_by('-created_at')
     
     context = {
         'person': person,
@@ -178,7 +188,7 @@ def person_create(request):
                 request=request
             )
             
-            messages.success(request, f'Personne {person.get_full_name()} créée avec succès.')
+            messages.success(request, f'{person.get_full_name()} ajouté(e) avec succès.')
             return redirect('genealogy:person_detail', person_id=person.id)
     else:
         form = PersonForm()
@@ -252,30 +262,46 @@ def person_delete(request, person_id):
     person.delete()
     
     messages.success(request, f"{person_name} a été supprimé(e) avec succès.")
-    return redirect('genealogy:search')
+    return redirect('genealogy:dashboard')
+
 
 @login_required
 def add_partnership(request, person_id):
-    """Add a partnership/marriage for a person"""
+    """Add a partnership for a person"""
     person = get_object_or_404(Person, id=person_id)
     
+    if not person.can_be_modified_by(request.user):
+        messages.error(request, "Vous n'avez pas l'autorisation de modifier cette personne.")
+        return redirect('genealogy:person_detail', person_id=person.id)
+    
     if request.method == 'POST':
-        form = PartnershipForm(request.POST, person1=person)
+        form = PartnershipForm(request.POST)
         if form.is_valid():
             partnership = form.save(commit=False)
             partnership.person1 = person
             partnership.created_by = request.user
-            partnership.save()  # ✅ Maintenant ça marche !
+            partnership.save()
             
-            messages.success(request, f'Union créée avec succès.')
+            create_audit_log(
+                user=request.user,
+                action='create',
+                model_name='Partnership',
+                object_id=partnership.id,
+                changes=form.cleaned_data,
+                request=request
+            )
+            
+            messages.success(request, 'Union ajoutée avec succès.')
             return redirect('genealogy:person_detail', person_id=person.id)
     else:
-        form = PartnershipForm(person1=person)
+        form = PartnershipForm()
     
     return render(request, 'genealogy/partnership_form.html', {
         'form': form,
         'person': person,
+        'title': f'Ajouter une union pour {person.get_full_name()}'
     })
+
 
 @login_required
 def add_child(request, person_id):
@@ -283,23 +309,39 @@ def add_child(request, person_id):
     parent = get_object_or_404(Person, id=person_id)
 
     if not parent.can_be_modified_by(request.user):
-        messages.error(
-            request,
-            "Vous n'avez pas l'autorisation de modifier cette personne."
-        )
+        messages.error(request, "Vous n'avez pas l'autorisation d'ajouter des enfants pour cette personne.")
         return redirect('genealogy:person_detail', person_id=parent.id)
 
     if request.method == 'POST':
         form = ParentChildForm(request.POST, parent=parent)
-
         if form.is_valid():
-            parent_child = form.save(commit=False)
-
-            # SET REQUIRED FIELDS BEFORE VALIDATION
-            parent_child.parent = parent
-            parent_child.created_by = request.user
-
             try:
+                # Get the selected child from the form
+                child = form.cleaned_data['child']
+                relationship_type = form.cleaned_data['relationship_type']
+                notes = form.cleaned_data.get('notes', '')
+                
+                # Check if relationship already exists
+                existing_relationship = ParentChild.objects.filter(
+                    parent=parent,
+                    child=child
+                ).first()
+                
+                if existing_relationship:
+                    messages.error(request, f'{child.get_full_name()} est déjà enregistré(e) comme enfant de {parent.get_full_name()}.')
+                    return redirect('genealogy:person_detail', person_id=parent.id)
+                
+                # Create the parent-child relationship directly
+                parent_child = ParentChild(
+                    parent=parent,
+                    child=child,
+                    relationship_type=relationship_type,
+                    notes=notes,
+                    created_by=request.user,
+                    status='confirmed'
+                )
+                
+                # Validate the relationship
                 parent_child.full_clean()
                 parent_child.save()
 
@@ -308,33 +350,37 @@ def add_child(request, person_id):
                     action='create',
                     model_name='ParentChild',
                     object_id=parent_child.id,
-                    changes=form.cleaned_data,
+                    changes={
+                        'parent': parent.id,
+                        'child': child.id,
+                        'relationship_type': relationship_type,
+                        'notes': notes
+                    },
                     request=request
                 )
 
-                messages.success(request, "Enfant ajouté avec succès.")
+                messages.success(request, f'{child.get_full_name()} a été ajouté(e) comme enfant de {parent.get_full_name()}.')
                 return redirect('genealogy:person_detail', person_id=parent.id)
 
             except ValidationError as e:
                 if hasattr(e, 'message_dict'):
-                    for field, error_list in e.message_dict.items():  # ✅ FIX
+                    for field, error_list in e.message_dict.items():
                         for error in error_list:
                             form.add_error(field, error)
                 else:
-                    form.add_error(None, e.message)
+                    form.add_error(None, str(e))
+            except Exception as e:
+                messages.error(request, f'Erreur lors de la création de la relation parent-enfant: {str(e)}')
+                return redirect('genealogy:person_detail', person_id=parent.id)
 
     else:
         form = ParentChildForm(parent=parent)
 
-    return render(
-        request,
-        'genealogy/parent_child_form.html',
-        {
-            'form': form,
-            'parent': parent,
-            'title': f'Ajouter un enfant pour {parent.get_full_name()}',
-        }
-    )
+    return render(request, 'genealogy/parent_child_form.html', {
+        'form': form,
+        'parent': parent,
+        'title': f'Ajouter un enfant pour {parent.get_full_name()}',
+    })
 
 
 @login_required
@@ -517,36 +563,319 @@ def export_gedcom(request):
 
 @login_required
 def manage_users(request):
-    """Manage users and permissions (admin only)"""
+    """Complete manage users view with all data properly loaded"""
     if request.user.role != 'admin':
         messages.error(request, "Seuls les administrateurs peuvent gérer les utilisateurs.")
         return redirect('genealogy:dashboard')
     
+    # Get the active tab from URL parameter
+    active_tab = request.GET.get('tab', 'users')  # Default to 'users' tab
+    
+    # Load all basic data
     users = User.objects.all().order_by('last_name', 'first_name')
     
+    # User statistics
+    user_stats = {
+        'total': User.objects.count(),
+        'active': User.objects.filter(is_active=True).count(),
+        'admin': User.objects.filter(role='admin').count(),
+        'member': User.objects.filter(role='member').count(),
+    }
+    
+    # Proposal statistics and data
+    proposals_queryset = ModificationProposal.objects.select_related(
+        'person', 'proposed_by', 'reviewed_by'
+    ).order_by('-created_at')
+    
+    proposal_stats = {
+        'total': proposals_queryset.count(),
+        'pending': proposals_queryset.filter(status='pending').count(),
+        'approved': proposals_queryset.filter(status='approved').count(),
+        'rejected': proposals_queryset.filter(status='rejected').count(),
+    }
+    
+    # Load proposals data (with pagination)
+    proposals = None
+    if active_tab == 'proposals':
+        status_filter = request.GET.get('status')
+        if status_filter:
+            proposals_queryset = proposals_queryset.filter(status=status_filter)
+        
+        # Pagination for proposals
+        paginator = Paginator(proposals_queryset, 20)  # Show 20 proposals per page
+        page_number = request.GET.get('page')
+        proposals = paginator.get_page(page_number)
+    
+    # Load invitations data - Import the model if it exists
+    invitations = None
+    invitation_stats = {'total': 0, 'pending': 0, 'accepted': 0, 'expired': 0}
+    
+    try:
+        # Try to import UserInvitation model - adjust import path as needed
+        from accounts.models import UserInvitation
+        
+        invitations_queryset = UserInvitation.objects.all().order_by('-created_at')
+        
+        invitation_stats = {
+            'total': invitations_queryset.count(),
+            'pending': invitations_queryset.filter(accepted_at__isnull=True, expires_at__gt=timezone.now()).count() if hasattr(UserInvitation, 'expires_at') else 0,
+            'accepted': invitations_queryset.filter(accepted_at__isnull=False).count() if hasattr(UserInvitation, 'accepted_at') else 0,
+            'expired': invitations_queryset.filter(expires_at__lt=timezone.now()).count() if hasattr(UserInvitation, 'expires_at') else 0,
+        }
+        
+        if active_tab == 'invitations':
+            invitations = invitations_queryset
+            
+    except ImportError:
+        # UserInvitation model doesn't exist
+        pass
+    except Exception as e:
+        # Handle other potential errors
+        print(f"Error loading invitations: {e}")
+    
+    # Search functionality for users
+    search_query = request.GET.get('search')
+    if search_query:
+        users = users.filter(
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(email__icontains=search_query) |
+            Q(username__icontains=search_query)
+        )
+    
     context = {
+        'active_tab': active_tab,
         'users': users,
+        'user_stats': user_stats,
+        'proposals': proposals,
+        'proposal_stats': proposal_stats,
+        'invitations': invitations,
+        'invitation_stats': invitation_stats,
+        'search_query': search_query,
     }
     
     return render(request, 'genealogy/manage_users.html', context)
 
+@login_required
+def toggle_user(request, user_id):
+    """Toggle user active status"""
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    user = get_object_or_404(User, id=user_id)
+    activate = request.POST.get('activate', 'false').lower() == 'true'
+    
+    # Prevent admin from deactivating themselves
+    if user == request.user and not activate:
+        return JsonResponse({'error': 'Vous ne pouvez pas vous désactiver vous-même'}, status=400)
+    
+    try:
+        user.is_active = activate
+        user.save()
+        
+        # Create audit log
+        from .utils import create_audit_log
+        action = 'Activation' if activate else 'Désactivation'
+        create_audit_log(
+            user=request.user,
+            action='update',
+            model_name='User',
+            object_id=user.id,
+            changes={
+                'action': action,
+                'is_active': activate,
+                'target_user': user.get_full_name()
+            },
+            request=request
+        )
+        
+        message = f'Utilisateur {"activé" if activate else "désactivé"} avec succès'
+        return JsonResponse({'success': True, 'message': message})
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def delete_user(request, user_id):
+    """Delete user account"""
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    # Prevent admin from deleting themselves
+    if user == request.user:
+        return JsonResponse({'error': 'Vous ne pouvez pas supprimer votre propre compte'}, status=400)
+    
+    try:
+        user_name = user.get_full_name()
+        
+        # Create audit log before deletion
+        from .utils import create_audit_log
+        create_audit_log(
+            user=request.user,
+            action='delete',
+            model_name='User',
+            object_id=user.id,
+            changes={
+                'deleted_user': user_name,
+                'email': user.email,
+                'role': user.role
+            },
+            request=request
+        )
+        
+        user.delete()
+        
+        return JsonResponse({
+            'success': True, 
+            'message': f'Utilisateur {user_name} supprimé avec succès'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+@login_required
+def edit_user(request, user_id):
+    """Edit user permissions and role"""
+    if request.user.role != 'admin':
+        return JsonResponse({'error': 'Permission denied'}, status=403)
+    
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    
+    user = get_object_or_404(User, id=user_id)
+    
+    try:
+        old_values = {
+            'role': user.role,
+            'can_add_children': getattr(user, 'can_add_children', False),
+            'can_modify_own_info': getattr(user, 'can_modify_own_info', False),
+            'can_view_private_info': getattr(user, 'can_view_private_info', False),
+            'can_export_data': getattr(user, 'can_export_data', False),
+        }
+        
+        # Update basic info
+        new_role = request.POST.get('role')
+        if new_role in ['admin', 'member', 'visitor']:
+            user.role = new_role
+        
+        # Update permissions (if user model has these fields)
+        permissions = [
+            'can_add_children',
+            'can_modify_own_info', 
+            'can_view_private_info',
+            'can_export_data'
+        ]
+        
+        changes = {}
+        for perm in permissions:
+            if hasattr(user, perm):
+                old_val = getattr(user, perm, False)
+                new_val = request.POST.get(perm) == 'on'
+                setattr(user, perm, new_val)
+                if old_val != new_val:
+                    changes[perm] = {'old': old_val, 'new': new_val}
+        
+        if user.role != old_values['role']:
+            changes['role'] = {'old': old_values['role'], 'new': user.role}
+        
+        user.save()
+        
+        # Create audit log
+        if changes:
+            from .utils import create_audit_log
+            create_audit_log(
+                user=request.user,
+                action='update',
+                model_name='User',
+                object_id=user.id,
+                changes={
+                    'target_user': user.get_full_name(),
+                    'changes': changes
+                },
+                request=request
+            )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Utilisateur {user.get_full_name()} mis à jour avec succès'
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
 
 @login_required
 def audit_log(request):
-    """View audit log (admin only)"""
+    """View audit log with filtering (admin only)"""
     if request.user.role != 'admin':
         messages.error(request, "Seuls les administrateurs peuvent voir les journaux d'audit.")
         return redirect('genealogy:dashboard')
     
-    logs = AuditLog.objects.all().order_by('-timestamp')
+    # Get all logs initially
+    logs = AuditLog.objects.all()
+    
+    # Apply filters based on GET parameters
+    action_filter = request.GET.get('action')
+    if action_filter:
+        logs = logs.filter(action=action_filter)
+    
+    model_filter = request.GET.get('model')
+    if model_filter:
+        logs = logs.filter(model_name=model_filter)
+    
+    # Date filtering
+    date_from = request.GET.get('date_from')
+    if date_from:
+        try:
+            date_from_obj = datetime.strptime(date_from, '%Y-%m-%d').date()
+            logs = logs.filter(timestamp__date__gte=date_from_obj)
+        except ValueError:
+            messages.warning(request, "Format de date invalide pour 'Date de'")
+    
+    date_to = request.GET.get('date_to')
+    if date_to:
+        try:
+            date_to_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+            logs = logs.filter(timestamp__date__lte=date_to_obj)
+        except ValueError:
+            messages.warning(request, "Format de date invalide pour 'Date à'")
+    
+    # User filtering (handle deleted users)
+    user_search = request.GET.get('user')
+    if user_search:
+        logs = logs.filter(
+            Q(user__username__icontains=user_search) |
+            Q(user__first_name__icontains=user_search) |
+            Q(user__last_name__icontains=user_search) |
+            Q(user__email__icontains=user_search)
+        )
+    
+    # Order by most recent first
+    logs = logs.order_by('-timestamp')
     
     # Pagination
-    paginator = Paginator(logs, 50)
+    paginator = Paginator(logs, 20)  # Show 20 logs per page
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
     context = {
         'logs': page_obj,
+        'total_logs': logs.count(),
+        'filters': {
+            'action': action_filter,
+            'model': model_filter,
+            'date_from': date_from,
+            'date_to': date_to,
+            'user': user_search,
+        }
     }
     
     return render(request, 'genealogy/audit_log.html', context)
@@ -602,27 +931,33 @@ def api_family_tree_data(request, person_id):
 # Helper functions
 
 def can_view_person(user, person):
-    """Check if user can view a person's details"""
+    """Check if user can view person"""
+    if not person:
+        return False
+    
+    # Public visibility
     if person.visibility == 'public':
         return True
     
-    if not user.is_authenticated:
+    # Private visibility - only the person themselves or admin
+    if person.visibility == 'private':
+        if not user or not user.is_authenticated:
+            return False
+        if user.role == 'admin':
+            return True
+        if person.user_account == user:
+            return True
         return False
     
-    if user.role == 'admin':
-        return True
-    
+    # Family visibility - any authenticated family member
     if person.visibility == 'family':
-        return True
-    
-    if person.visibility == 'private':
-        return person.can_be_modified_by(user)
+        return user and user.is_authenticated
     
     return False
 
 
 def get_family_tree_data(center_person, user):
-    """Generate complete family tree data structure for genealogical visualization"""
+    """Generate family tree data for D3.js visualization"""
     
     def safe_get_person_data(person):
         """Safely get person data with null checks"""
@@ -654,57 +989,73 @@ def get_family_tree_data(center_person, user):
             print(f"Error getting person data for {person}: {e}")
             return None
     
-    def build_complete_tree():
-        """Build the complete family tree starting from all root ancestors"""
-        
-        # Find all people in the database
-        from genealogy.models import Person
-        all_people = Person.objects.all()
-        
-        # Build family structure
-        families = {}  # family_id -> {parents: [], children: []}
-        individuals = {}  # person_id -> person_data
-        
-        # Process all people
-        for person in all_people:
-            person_data = safe_get_person_data(person)
-            if person_data:
-                individuals[person.id] = person_data
-                
-                # Get family relationships
-                try:
-                    parents = person.get_parents()
-                    partners = person.get_partners()
-                    children = person.get_children()
+    def build_family_tree():
+        """Build family tree structure"""
+        try:
+            # Find all people in the database
+            all_people = Person.objects.all()
+            
+            # Build family structure
+            individuals = {}
+            
+            # Process all people
+            for person in all_people:
+                if not can_view_person(user, person):
+                    continue
                     
-                    # Store relationships
-                    person_data['parents'] = [p.id for p in parents]
-                    person_data['partners'] = [p.id for p in partners] 
-                    person_data['children'] = [c.id for c in children]
+                person_data = safe_get_person_data(person)
+                if person_data:
+                    individuals[person.id] = person_data
                     
-                except Exception as e:
-                    print(f"Error getting relationships for {person}: {e}")
-                    person_data['parents'] = []
-                    person_data['partners'] = []
-                    person_data['children'] = []
-        
-        return individuals
+                    # Get family relationships
+                    try:
+                        parents = person.get_parents() if hasattr(person, 'get_parents') else []
+                        partners = person.get_partners() if hasattr(person, 'get_partners') else []
+                        children = person.get_children() if hasattr(person, 'get_children') else []
+                        
+                        # Store relationships
+                        person_data['parents'] = [p.id for p in parents if p]
+                        person_data['partners'] = [p.id for p in partners if p] 
+                        person_data['children'] = [c.id for c in children if c]
+                        
+                    except Exception as e:
+                        print(f"Error getting relationships for {person}: {e}")
+                        person_data['parents'] = []
+                        person_data['partners'] = []
+                        person_data['children'] = []
+            
+            return individuals
+        except Exception as e:
+            print(f"Error building family tree: {e}")
+            return {}
     
     # Build the complete tree structure
-    family_tree = build_complete_tree()
-    
-    return {
-        'individuals': family_tree,
-        'root_person_id': center_person.id if center_person else None
-    }
+    try:
+        family_tree = build_family_tree()
+        
+        return {
+            'individuals': family_tree,
+            'root_person_id': center_person.id if center_person else None
+        }
+    except Exception as e:
+        print(f"Error in get_family_tree_data: {e}")
+        return {
+            'individuals': {},
+            'root_person_id': None
+        }
 
+
+# Error handlers
 def permission_denied_view(request, exception=None):
+    """Custom 403 error page"""
     return render(request, 'errors/403.html', status=403)
 
 
 def page_not_found_view(request, exception=None):
+    """Custom 404 error page"""
     return render(request, 'errors/404.html', status=404)
 
 
 def server_error_view(request):
+    """Custom 500 error page"""
     return render(request, 'errors/500.html', status=500)

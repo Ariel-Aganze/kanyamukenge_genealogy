@@ -12,4 +12,6 @@ urlpatterns = [
     path('send-invitation/', views.send_invitation, name='send_invitation'),
     path('profile/', views.profile_view, name='profile'),
     path('profile/update/', views.profile_update, name='profile_update'),
+    path('change-password/', views.change_password, name='change_password'),
+
 ]

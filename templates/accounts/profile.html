@@ -53,6 +53,7 @@
                     </button>
                 </div>
 
+                <!-- FIXED: Proper form with styled input fields -->
                 <form method="post" id="profileForm" style="display: none;">
                     {% csrf_token %}
                     
@@ -60,35 +61,44 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <!-- First Name -->
                             <div>
-                                <label for="{{ form.first_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                <label for="id_first_name" class="block text-sm font-medium text-gray-700 mb-2">
                                     Prénom
                                 </label>
-                                {{ form.first_name }}
+                                <input type="text" id="id_first_name" name="first_name" 
+                                       value="{{ user.first_name|default:'' }}"
+                                       class="w-full px-4 py-2 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent">
                             </div>
 
                             <!-- Last Name -->
                             <div>
-                                <label for="{{ form.last_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                <label for="id_last_name" class="block text-sm font-medium text-gray-700 mb-2">
                                     Nom de famille
                                 </label>
-                                {{ form.last_name }}
+                                <input type="text" id="id_last_name" name="last_name" 
+                                       value="{{ user.last_name|default:'' }}"
+                                       class="w-full px-4 py-2 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent">
                             </div>
                         </div>
 
                         <!-- Email -->
                         <div>
-                            <label for="{{ form.email.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            <label for="id_email" class="block text-sm font-medium text-gray-700 mb-2">
                                 Adresse email
                             </label>
-                            {{ form.email }}
+                            <input type="email" id="id_email" name="email" 
+                                   value="{{ user.email|default:'' }}"
+                                   class="w-full px-4 py-2 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent">
                         </div>
 
                         <!-- Phone -->
                         <div>
-                            <label for="{{ form.phone_number.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            <label for="id_phone_number" class="block text-sm font-medium text-gray-700 mb-2">
                                 Numéro de téléphone
                             </label>
-                            {{ form.phone_number }}
+                            <input type="tel" id="id_phone_number" name="phone_number" 
+                                   value="{{ user.phone_number|default:'' }}"
+                                   class="w-full px-4 py-2 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent"
+                                   placeholder="+243 XXX XXX XXX">
                         </div>
 
                         <!-- Action buttons -->
@@ -131,7 +141,7 @@
                 </div>
             </div>
 
-            <!-- Change Password Section -->
+            <!-- FIXED: Working Change Password Section -->
             <div class="bg-white rounded-xl shadow-sm border border-brand-border p-6 mt-6">
                 <h3 class="font-serif text-lg font-bold text-gray-900 mb-4">Sécurité du compte</h3>
                 
@@ -140,9 +150,51 @@
                         <p class="font-medium text-gray-900">Mot de passe</p>
                         <p class="text-sm text-gray-500">Dernière modification : {{ user.last_login|date:"d F Y"|default:"Jamais" }}</p>
                     </div>
-                    <button class="text-brand-accent hover:text-brand-primary text-sm font-medium">
+                    <button onclick="togglePasswordChangeForm()" id="passwordChangeButton" class="text-brand-accent hover:text-brand-primary text-sm font-medium">
                         Modifier le mot de passe
                     </button>
+                </div>
+                
+                <!-- Password Change Form -->
+                <div id="passwordChangeForm" class="mt-4 hidden">
+                    <form method="post" action="{% url 'accounts:change_password' %}">
+                        {% csrf_token %}
+                        <div class="space-y-4">
+                            <div>
+                                <label for="old_password" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Mot de passe actuel
+                                </label>
+                                <input type="password" id="old_password" name="old_password" required
+                                       class="w-full px-4 py-2 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent">
+                            </div>
+                            
+                            <div>
+                                <label for="new_password1" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Nouveau mot de passe
+                                </label>
+                                <input type="password" id="new_password1" name="new_password1" required
+                                       class="w-full px-4 py-2 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent">
+                            </div>
+                            
+                            <div>
+                                <label for="new_password2" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Confirmer le nouveau mot de passe
+                                </label>
+                                <input type="password" id="new_password2" name="new_password2" required
+                                       class="w-full px-4 py-2 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent">
+                            </div>
+                            
+                            <div class="flex gap-4 pt-4">
+                                <button type="submit" class="bg-brand-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-green-800 transition flex items-center gap-2">
+                                    <i data-feather="lock" class="w-4 h-4"></i>
+                                    Changer le mot de passe
+                                </button>
+                                <button type="button" onclick="togglePasswordChangeForm()" class="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg font-medium hover:bg-gray-200 transition">
+                                    Annuler
+                                </button>
+                            </div>
+                        </div>
+                    </form>
                 </div>
             </div>
         </div>
@@ -212,7 +264,7 @@
                 </div>
             </div>
 
-            <!-- Statistiques de contribution -->
+            <!-- FIXED: Real contribution statistics -->
             <div class="bg-white rounded-xl shadow-sm border border-brand-border p-6">
                 <h3 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                     <i data-feather="activity" class="w-5 h-5 text-gray-400"></i>
@@ -222,24 +274,36 @@
                 <div class="space-y-4">
                     <div class="text-center">
                         <div class="text-2xl font-serif font-bold text-brand-primary">
-                            {{ user_people_count|default:0 }}
+                            {{ stats.people_added|default:0 }}
                         </div>
                         <p class="text-sm text-gray-600">Personnes ajoutées</p>
                     </div>
                     
                     <div class="text-center">
                         <div class="text-2xl font-serif font-bold text-brand-primary">
-                            {{ modifications_count|default:0 }}
+                            {{ stats.modifications_proposed|default:0 }}
                         </div>
                         <p class="text-sm text-gray-600">Modifications proposées</p>
+                    </div>
+                    
+                    <div class="text-center">
+                        <div class="text-2xl font-serif font-bold text-brand-primary">
+                            {{ stats.partnerships_created|default:0 }}
+                        </div>
+                        <p class="text-sm text-gray-600">Relations créées</p>
                     </div>
                 </div>
                 
                 <div class="mt-4 pt-4 border-t border-gray-200">
+                    <div class="text-xs text-gray-500 mb-2">
+                        Membre depuis {{ user.date_joined|timesince }}
+                    </div>
+                    {% if user.role == 'admin' %}
                     <a href="{% url 'genealogy:audit_log' %}" class="text-sm text-brand-accent hover:text-brand-primary flex items-center gap-1">
                         <i data-feather="clock" class="w-4 h-4"></i>
                         Voir mon historique
                     </a>
+                    {% endif %}
                 </div>
             </div>
 
@@ -251,10 +315,12 @@
                 </h3>
                 
                 <div class="space-y-2">
+                    {% if user.can_add_children %}
                     <a href="{% url 'genealogy:person_create' %}" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
                         <i data-feather="user-plus" class="w-4 h-4 text-brand-accent"></i>
                         Ajouter un membre
                     </a>
+                    {% endif %}
                     
                     <a href="{% url 'genealogy:family_tree' %}" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
                         <i data-feather="share-2" class="w-4 h-4 text-brand-accent"></i>
@@ -265,6 +331,13 @@
                         <i data-feather="search" class="w-4 h-4 text-brand-accent"></i>
                         Rechercher
                     </a>
+                    
+                    {% if user.can_export_data %}
+                    <a href="#" onclick="showGedcomModal()" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
+                        <i data-feather="download" class="w-4 h-4 text-brand-accent"></i>
+                        Exporter GEDCOM
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -291,5 +364,23 @@
             feather.replace();
         }
     }
+    
+    function togglePasswordChangeForm() {
+        const form = document.getElementById('passwordChangeForm');
+        const button = document.getElementById('passwordChangeButton');
+        
+        if (form.classList.contains('hidden')) {
+            form.classList.remove('hidden');
+            button.textContent = 'Annuler';
+        } else {
+            form.classList.add('hidden');
+            button.textContent = 'Modifier le mot de passe';
+        }
+    }
+
+    // Initialize feather icons
+    document.addEventListener('DOMContentLoaded', function() {
+        feather.replace();
+    });
 </script>
 {% endblock %}

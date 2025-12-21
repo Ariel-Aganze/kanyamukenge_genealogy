@@ -8,6 +8,13 @@ from django.urls import reverse
 from django.utils import timezone
 from django.http import HttpResponseRedirect
 from .models import User, OTPToken, UserInvitation
+from genealogy.models import Person, ModificationProposal, Partnership, ParentChild, AuditLog
+from genealogy.utils import create_audit_log
+from django.views.decorators.http import require_http_methods
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth import update_session_auth_hash
+from django.http import JsonResponse
+
 from .forms import (
     UserRegistrationForm, LoginForm, AdminOTPForm, 
     InvitationForm, ProfileUpdateForm
@@ -186,12 +193,230 @@ def profile_update(request):
     
     return render(request, 'accounts/profile.html', {'form': form})
 
+def calculate_user_statistics(user):
+    """Calculate real user contribution statistics"""
+    
+    try:
+        # People added by this user
+        people_added = Person.objects.filter(
+            created_by=user
+        ).count()
+        
+        # Modifications proposed by this user
+        modifications_proposed = ModificationProposal.objects.filter(
+            proposed_by=user
+        ).count()
+        
+        # Partnerships/marriages created by this user
+        partnerships_created = Partnership.objects.filter(
+            created_by=user
+        ).count() if hasattr(Partnership, 'created_by') else 0
+        
+        # Parent-child relationships created by this user
+        relationships_created = ParentChild.objects.filter(
+            created_by=user
+        ).count() if hasattr(ParentChild, 'created_by') else 0
+        
+        # Audit log entries (total actions by user)
+        total_actions = AuditLog.objects.filter(
+            user=user
+        ).count()
+        
+        # Recent activity (last 30 days)
+        from datetime import datetime, timedelta
+        recent_cutoff = datetime.now() - timedelta(days=30)
+        recent_activity = AuditLog.objects.filter(
+            user=user,
+            timestamp__gte=recent_cutoff
+        ).count()
+        
+        # Approved modifications
+        approved_modifications = ModificationProposal.objects.filter(
+            proposed_by=user,
+            status='approved'
+        ).count()
+        
+        # Pending modifications
+        pending_modifications = ModificationProposal.objects.filter(
+            proposed_by=user,
+            status='pending'
+        ).count()
+        
+        return {
+            'people_added': people_added,
+            'modifications_proposed': modifications_proposed,
+            'partnerships_created': partnerships_created + relationships_created,  # Combined relationships
+            'total_actions': total_actions,
+            'recent_activity': recent_activity,
+            'approved_modifications': approved_modifications,
+            'pending_modifications': pending_modifications,
+            'contribution_score': people_added * 3 + approved_modifications * 2 + partnerships_created,  # Simple scoring
+        }
+        
+    except Exception as e:
+        print(f"Error calculating user statistics: {e}")
+        return {
+            'people_added': 0,
+            'modifications_proposed': 0,
+            'partnerships_created': 0,
+            'total_actions': 0,
+            'recent_activity': 0,
+            'approved_modifications': 0,
+            'pending_modifications': 0,
+            'contribution_score': 0,
+        }
+
 
 @login_required
 def profile_view(request):
-    """View user profile"""
-    return render(request, 'accounts/profile.html')
+    """User profile view with real statistics and form handling"""
+    
+    if request.method == 'POST':
+        if 'old_password' in request.POST:
+            # Handle password change
+            form = PasswordChangeForm(request.user, request.POST)
+            if form.is_valid():
+                user = form.save()
+                update_session_auth_hash(request, user)  # Keep user logged in
+                
+                # Create audit log
+                create_audit_log(
+                    user=request.user,
+                    action='update',
+                    model_name='User',
+                    object_id=request.user.id,
+                    changes={'action': 'Password changed'},
+                    request=request
+                )
+                
+                messages.success(request, 'Votre mot de passe a été modifié avec succès.')
+                return redirect('accounts:profile')
+            else:
+                for field, errors in form.errors.items():
+                    for error in errors:
+                        messages.error(request, f'Erreur mot de passe: {error}')
+        else:
+            # Handle profile update
+            user = request.user
+            old_values = {
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'email': user.email,
+                'phone_number': getattr(user, 'phone_number', ''),
+            }
+            
+            # Update user fields
+            changes = {}
+            
+            new_first_name = request.POST.get('first_name', '').strip()
+            if new_first_name != user.first_name:
+                changes['first_name'] = {'old': user.first_name, 'new': new_first_name}
+                user.first_name = new_first_name
+            
+            new_last_name = request.POST.get('last_name', '').strip()
+            if new_last_name != user.last_name:
+                changes['last_name'] = {'old': user.last_name, 'new': new_last_name}
+                user.last_name = new_last_name
+            
+            new_email = request.POST.get('email', '').strip()
+            if new_email != user.email:
+                changes['email'] = {'old': user.email, 'new': new_email}
+                user.email = new_email
+            
+            new_phone = request.POST.get('phone_number', '').strip()
+            if hasattr(user, 'phone_number') and new_phone != getattr(user, 'phone_number', ''):
+                changes['phone_number'] = {'old': getattr(user, 'phone_number', ''), 'new': new_phone}
+                user.phone_number = new_phone
+            
+            if changes:
+                try:
+                    user.save()
+                    
+                    # Create audit log
+                    create_audit_log(
+                        user=request.user,
+                        action='update',
+                        model_name='User',
+                        object_id=request.user.id,
+                        changes={
+                            'action': 'Profile updated',
+                            'changes': changes
+                        },
+                        request=request
+                    )
+                    
+                    messages.success(request, 'Votre profil a été mis à jour avec succès.')
+                except Exception as e:
+                    messages.error(request, f'Erreur lors de la mise à jour: {str(e)}')
+            else:
+                messages.info(request, 'Aucune modification détectée.')
+            
+            return redirect('accounts:profile')
+    
+    # Calculate real user statistics
+    stats = calculate_user_statistics(request.user)
+    
+    context = {
+        'user': request.user,
+        'stats': stats,
+    }
+    
+    return render(request, 'accounts/profile.html', context)
 
+@login_required
+@require_http_methods(["POST"])
+def change_password(request):
+    """Handle password change via AJAX or form submission"""
+    form = PasswordChangeForm(request.user, request.POST)
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        # AJAX request
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)
+            
+            # Create audit log
+            create_audit_log(
+                user=request.user,
+                action='update',
+                model_name='User',
+                object_id=request.user.id,
+                changes={'action': 'Password changed via AJAX'},
+                request=request
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Mot de passe modifié avec succès'
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'errors': form.errors
+            })
+    else:
+        # Regular form submission
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)
+            
+            # Create audit log
+            create_audit_log(
+                user=request.user,
+                action='update',
+                model_name='User',
+                object_id=request.user.id,
+                changes={'action': 'Password changed'},
+                request=request
+            )
+            
+            messages.success(request, 'Votre mot de passe a été modifié avec succès.')
+        else:
+            for field, errors in form.errors.items():
+                for error in errors:
+                    messages.error(request, f'Erreur: {error}')
+        
+        return redirect('accounts:profile')
 
 def logout_view(request):
     """Handle user logout"""

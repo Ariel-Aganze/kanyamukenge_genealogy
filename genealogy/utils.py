@@ -2,7 +2,6 @@ from django.contrib.auth import get_user_model
 from django.utils import timezone
 from django.db import models
 from .models import AuditLog, Person, Partnership, ParentChild
-import datetime
 import json
 from datetime import date, datetime
 from django.core.serializers.json import DjangoJSONEncoder
@@ -59,12 +58,15 @@ def generate_gedcom_export():
     """Generate GEDCOM format export of the family tree"""
     gedcom_lines = []
     
+    # Get today's date properly
+    today = date.today()
+    
     # GEDCOM header
     gedcom_lines.extend([
         "0 HEAD",
         "1 SOUR Famille KANYAMUKENGE",
         "2 NAME Système Généalogique KANYAMUKENGE",
-        f"2 DATE {datetime.date.today().strftime('%d %b %Y').upper()}",
+        f"2 DATE {today.strftime('%d %b %Y').upper()}",
         "1 CHAR UTF-8",
         "1 GEDC",
         "2 VERS 5.5.1",
@@ -72,128 +74,132 @@ def generate_gedcom_export():
         "",
     ])
     
-    # Individuals
-    people = Person.objects.all().order_by('id')
-    for person in people:
-        individual_id = f"I{person.id}"
-        
-        gedcom_lines.extend([
-            f"0 @{individual_id}@ INDI",
-            f"1 NAME {person.first_name} /{person.last_name}/",
-        ])
-        
-        if person.maiden_name:
-            gedcom_lines.append(f"1 NAME {person.first_name} /{person.maiden_name}/")
-        
-        if person.gender:
-            gedcom_lines.append(f"1 SEX {person.gender}")
-        
-        if person.birth_date:
-            birth_date_str = person.birth_date.strftime("%d %b %Y").upper()
-            gedcom_lines.append("1 BIRT")
-            gedcom_lines.append(f"2 DATE {birth_date_str}")
-            if person.birth_place:
-                gedcom_lines.append(f"2 PLAC {person.birth_place}")
-        
-        if person.death_date:
-            death_date_str = person.death_date.strftime("%d %b %Y").upper()
-            gedcom_lines.append("1 DEAT")
-            gedcom_lines.append(f"2 DATE {death_date_str}")
-            if person.death_place:
-                gedcom_lines.append(f"2 PLAC {person.death_place}")
-        
-        if person.profession:
-            gedcom_lines.append(f"1 OCCU {person.profession}")
-        
-        if person.biography:
-            # Split biography into lines if too long
-            bio_lines = person.biography.split('\n')
-            for i, line in enumerate(bio_lines):
-                if i == 0:
-                    gedcom_lines.append(f"1 NOTE {line}")
-                else:
-                    gedcom_lines.append(f"2 CONT {line}")
-        
-        gedcom_lines.append("")
-    
-    # Families (marriages/partnerships)
-    family_id = 1
-    partnerships = Partnership.objects.filter(status='confirmed')
-    
-    for partnership in partnerships:
-        family_gedcom_id = f"F{family_id}"
-        person1_id = f"I{partnership.person1.id}"
-        person2_id = f"I{partnership.person2.id}"
-        
-        gedcom_lines.extend([
-            f"0 @{family_gedcom_id}@ FAM",
-            f"1 HUSB @{person1_id}@",
-            f"1 WIFE @{person2_id}@",
-        ])
-        
-        if partnership.start_date:
-            marriage_date = partnership.start_date.strftime("%d %b %Y").upper()
-            gedcom_lines.append("1 MARR")
-            gedcom_lines.append(f"2 DATE {marriage_date}")
-            if partnership.location:
-                gedcom_lines.append(f"2 PLAC {partnership.location}")
-        
-        if partnership.end_date:
-            divorce_date = partnership.end_date.strftime("%d %b %Y").upper()
-            gedcom_lines.append("1 DIV")
-            gedcom_lines.append(f"2 DATE {divorce_date}")
-        
-        # Add children to this family
-        # Find children who have both persons as parents
-        person1_children = set(ParentChild.objects.filter(
-            parent=partnership.person1, status='confirmed'
-        ).values_list('child_id', flat=True))
-        
-        person2_children = set(ParentChild.objects.filter(
-            parent=partnership.person2, status='confirmed'
-        ).values_list('child_id', flat=True))
-        
-        common_children = person1_children.intersection(person2_children)
-        
-        for child_id in common_children:
-            gedcom_lines.append(f"1 CHIL @I{child_id}@")
-        
-        gedcom_lines.append("")
-        family_id += 1
-    
-    # Add family links to individuals
-    for person in people:
-        individual_id = f"I{person.id}"
-        
-        # Add family as child (FAMC)
-        parents = person.get_parents()
-        if len(parents) >= 2:
-            # Find the family record for these parents
-            parent1, parent2 = parents[0], parents[1]
-            try:
-                partnership = Partnership.objects.get(
-                    person1__in=[parent1, parent2],
-                    person2__in=[parent1, parent2],
-                    status='confirmed'
-                )
-                family_index = list(partnerships).index(partnership) + 1
-                gedcom_lines.append(f"0 @I{person.id}@ INDI")
-                gedcom_lines.append(f"1 FAMC @F{family_index}@")
-                gedcom_lines.append("")
-            except Partnership.DoesNotExist:
-                pass
-        
-        # Add family as spouse (FAMS)
-        person_partnerships = Partnership.objects.filter(
-            models.Q(person1=person) | models.Q(person2=person),
-            status='confirmed'
-        )
-        
-        for partnership in person_partnerships:
-            family_index = list(partnerships).index(partnership) + 1
-            gedcom_lines.append(f"0 @I{person.id}@ INDI")
-            gedcom_lines.append(f"1 FAMS @F{family_index}@")
+    try:
+        # Individuals
+        people = Person.objects.all().order_by('id')
+        for person in people:
+            individual_id = f"I{person.id}"
+            
+            gedcom_lines.extend([
+                f"0 @{individual_id}@ INDI",
+                f"1 NAME {person.first_name or 'Unknown'} /{person.last_name or 'Unknown'}/",
+            ])
+            
+            if person.maiden_name:
+                gedcom_lines.append(f"1 NAME {person.first_name or 'Unknown'} /{person.maiden_name}/")
+            
+            if person.gender:
+                gedcom_lines.append(f"1 SEX {person.gender}")
+            
+            if person.birth_date:
+                birth_date_str = person.birth_date.strftime("%d %b %Y").upper()
+                gedcom_lines.append("1 BIRT")
+                gedcom_lines.append(f"2 DATE {birth_date_str}")
+                if person.birth_place:
+                    gedcom_lines.append(f"2 PLAC {person.birth_place}")
+            
+            if person.death_date:
+                death_date_str = person.death_date.strftime("%d %b %Y").upper()
+                gedcom_lines.append("1 DEAT")
+                gedcom_lines.append(f"2 DATE {death_date_str}")
+                if person.death_place:
+                    gedcom_lines.append(f"2 PLAC {person.death_place}")
+            
+            if person.profession:
+                gedcom_lines.append(f"1 OCCU {person.profession}")
+            
+            if person.biography:
+                # Split biography into lines if too long
+                bio_lines = person.biography.split('\n')
+                for i, line in enumerate(bio_lines):
+                    if i == 0:
+                        gedcom_lines.append(f"1 NOTE {line}")
+                    else:
+                        gedcom_lines.append(f"2 CONT {line}")
+            
             gedcom_lines.append("")
+        
+        # Families (marriages/partnerships)
+        family_id = 1
+        partnerships = Partnership.objects.filter(status='confirmed')
+        
+        for partnership in partnerships:
+            family_gedcom_id = f"F{family_id}"
+            person1_id = f"I{partnership.person1.id}"
+            person2_id = f"I{partnership.person2.id}"
+            
+            gedcom_lines.extend([
+                f"0 @{family_gedcom_id}@ FAM",
+                f"1 HUSB @{person1_id}@",
+                f"1 WIFE @{person2_id}@",
+            ])
+            
+            if partnership.start_date:
+                marriage_date = partnership.start_date.strftime("%d %b %Y").upper()
+                gedcom_lines.append("1 MARR")
+                gedcom_lines.append(f"2 DATE {marriage_date}")
+                if partnership.location:
+                    gedcom_lines.append(f"2 PLAC {partnership.location}")
+            
+            if partnership.end_date:
+                divorce_date = partnership.end_date.strftime("%d %b %Y").upper()
+                gedcom_lines.append("1 DIV")
+                gedcom_lines.append(f"2 DATE {divorce_date}")
+            
+            # Add children to this family
+            try:
+                children = ParentChild.objects.filter(
+                    parent__in=[partnership.person1, partnership.person2]
+                )
+                child_ids = set()
+                for parent_child in children:
+                    child_ids.add(parent_child.child.id)
+                
+                for child_id in child_ids:
+                    gedcom_lines.append(f"1 CHIL @I{child_id}@")
+            except Exception as e:
+                print(f"Error processing children for family {family_id}: {e}")
+            
+            gedcom_lines.append("")
+            family_id += 1
+        
+        # Parent-Child relationships (for children without marriage record)
+        processed_children = set()
+        parent_child_relations = ParentChild.objects.all()
+        
+        for relation in parent_child_relations:
+            child_id = relation.child.id
+            if child_id not in processed_children:
+                # Find all parents of this child
+                child_relations = ParentChild.objects.filter(child=relation.child)
+                parents = [rel.parent for rel in child_relations]
+                
+                if len(parents) == 1:
+                    # Single parent family
+                    family_gedcom_id = f"F{family_id}"
+                    parent_id = f"I{parents[0].id}"
+                    child_gedcom_id = f"I{child_id}"
+                    
+                    gedcom_lines.extend([
+                        f"0 @{family_gedcom_id}@ FAM",
+                        f"1 {'HUSB' if parents[0].gender == 'M' else 'WIFE'} @{parent_id}@",
+                        f"1 CHIL @{child_gedcom_id}@",
+                        ""
+                    ])
+                    
+                    family_id += 1
+                    processed_children.add(child_id)
+    
+    except Exception as e:
+        print(f"Error generating GEDCOM: {e}")
+        # Return a minimal GEDCOM if there's an error
+        gedcom_lines = [
+            "0 HEAD",
+            "1 SOUR Famille KANYAMUKENGE",
+            f"2 DATE {today.strftime('%d %b %Y').upper()}",
+            "1 CHAR UTF-8",
+            "0 TRLR"
+        ]
     
     # GEDCOM trailer
     gedcom_lines.append("0 TRLR")
@@ -201,144 +207,62 @@ def generate_gedcom_export():
     return '\n'.join(gedcom_lines)
 
 
-def calculate_relationship(person1, person2):
-    """Calculate the relationship between two people"""
-    if person1 == person2:
-        return "same_person"
-    
-    # Check direct relationships
-    if person2 in person1.get_parents():
-        return "parent"
-    
-    if person2 in person1.get_children():
-        return "child"
-    
-    if person2 in person1.get_partners():
-        return "partner"
-    
-    if person2 in person1.get_siblings():
-        return "sibling"
-    
-    # Check for grandparents/grandchildren
-    person1_parents = person1.get_parents()
-    person2_parents = person2.get_parents()
-    
-    # Grandparent/grandchild relationships
-    for parent in person1_parents:
-        if person2 in parent.get_parents():
-            return "grandparent"
-        
-        for grandparent in parent.get_parents():
-            if person2 == grandparent:
-                return "grandparent"
-    
-    for child in person1.get_children():
-        if person2 in child.get_children():
-            return "grandchild"
-    
-    # Check for cousins (share grandparents)
-    person1_grandparents = []
-    for parent in person1_parents:
-        person1_grandparents.extend(parent.get_parents())
-    
-    person2_grandparents = []
-    for parent in person2_parents:
-        person2_grandparents.extend(parent.get_parents())
-    
-    if any(gp in person2_grandparents for gp in person1_grandparents):
-        return "cousin"
-    
-    # Check for aunt/uncle, niece/nephew relationships
-    person1_siblings = person1.get_siblings()
-    for sibling in person1_siblings:
-        if person2 in sibling.get_children():
-            return "niece_nephew"
-        if person2 in sibling.get_parents():
-            return "aunt_uncle"
-    
-    person2_siblings = person2.get_siblings()
-    for sibling in person2_siblings:
-        if person1 in sibling.get_children():
-            return "aunt_uncle"
-        if person1 in sibling.get_parents():
-            return "niece_nephew"
-    
-    return "distant_relative"
-
-
-def get_relationship_display(relationship):
-    """Get human-readable relationship display"""
-    relationship_map = {
-        "same_person": "Même personne",
-        "parent": "Parent",
-        "child": "Enfant",
-        "partner": "Conjoint(e)",
-        "sibling": "Frère/Sœur",
-        "grandparent": "Grand-parent",
-        "grandchild": "Petit-enfant",
-        "cousin": "Cousin(e)",
-        "aunt_uncle": "Oncle/Tante",
-        "niece_nephew": "Neveu/Nièce",
-        "distant_relative": "Parenté éloignée",
-    }
-    
-    return relationship_map.get(relationship, "Relation inconnue")
-
-
-def validate_family_tree_consistency():
-    """Validate the consistency of the family tree data"""
+def validate_family_tree():
+    """Validate the family tree for inconsistencies and errors"""
     errors = []
+    warnings = []
     
-    # Check for circular relationships
-    people = Person.objects.all()
-    for person in people:
-        visited = set()
-        if has_circular_relationship(person, visited):
-            errors.append(f"Relation circulaire détectée impliquant {person.get_full_name()}")
-    
-    # Check for impossible dates
-    parent_child_relations = ParentChild.objects.filter(status='confirmed')
-    for relation in parent_child_relations:
-        parent = relation.parent
-        child = relation.child
+    try:
+        # Check for circular relationships
+        people = Person.objects.all()
+        for person in people:
+            try:
+                if has_circular_relationship(person, set()):
+                    errors.append(f"Relation circulaire détectée pour {person.get_full_name()}")
+            except Exception as e:
+                warnings.append(f"Erreur lors de la vérification de {person.get_full_name()}: {e}")
         
-        if parent.birth_date and child.birth_date:
-            # Parent should be at least 10 years older than child
-            age_difference = child.birth_date.year - parent.birth_date.year
-            if age_difference < 10:
-                errors.append(
-                    f"Âge parent-enfant suspect: {parent.get_full_name()} "
-                    f"et {child.get_full_name()} (différence: {age_difference} ans)"
-                )
+        # Check for impossible dates
+        for person in people:
+            try:
+                if person.birth_date and person.death_date:
+                    if person.birth_date > person.death_date:
+                        errors.append(f"Date de naissance postérieure à la date de décès pour {person.get_full_name()}")
+                
+                # Check parent-child age differences
+                if hasattr(person, 'get_parents'):
+                    parents = person.get_parents()
+                    for parent in parents:
+                        if person.birth_date and parent.birth_date:
+                            age_diff = (person.birth_date - parent.birth_date).days / 365.25
+                            if age_diff < 12:  # Parent was younger than 12 when child was born
+                                warnings.append(f"Différence d'âge suspecte entre {parent.get_full_name()} et {person.get_full_name()}")
+            except Exception as e:
+                warnings.append(f"Erreur lors de la validation des dates pour {person.get_full_name()}: {e}")
         
-        if parent.death_date and child.birth_date:
-            # Child cannot be born after parent's death (allowing 9 months grace period)
-            death_year = parent.death_date.year
-            birth_year = child.birth_date.year
-            if birth_year > death_year + 1:
-                errors.append(
-                    f"Date impossible: {child.get_full_name()} né après "
-                    f"la mort de {parent.get_full_name()}"
-                )
-    
-    # Check for duplicate people
-    potential_duplicates = []
-    for person in people:
-        similar_people = Person.objects.filter(
-            first_name__iexact=person.first_name,
-            last_name__iexact=person.last_name,
-            birth_date=person.birth_date
-        ).exclude(id=person.id)
+        # Check for potential duplicates
+        potential_duplicates = []
+        for person in people:
+            try:
+                similar_people = Person.objects.filter(
+                    first_name__iexact=person.first_name,
+                    last_name__iexact=person.last_name
+                ).exclude(id=person.id)
+                
+                if similar_people.exists():
+                    potential_duplicates.append(
+                        f"Possible doublon: {person.get_full_name()} "
+                        f"(ID: {person.id}) similaire à {similar_people.count()} autre(s) personne(s)"
+                    )
+            except Exception as e:
+                warnings.append(f"Erreur lors de la vérification des doublons pour {person.get_full_name()}: {e}")
         
-        if similar_people.exists():
-            potential_duplicates.append(
-                f"Possible doublon: {person.get_full_name()} "
-                f"(ID: {person.id}) similaire à {similar_people.count()} autre(s) personne(s)"
-            )
+        errors.extend(potential_duplicates)
     
-    errors.extend(potential_duplicates)
+    except Exception as e:
+        errors.append(f"Erreur générale lors de la validation: {e}")
     
-    return errors
+    return errors, warnings
 
 
 def has_circular_relationship(person, visited, depth=0):
@@ -351,129 +275,175 @@ def has_circular_relationship(person, visited, depth=0):
     
     visited.add(person.id)
     
-    # Check parents
-    for parent in person.get_parents():
-        if has_circular_relationship(parent, visited.copy(), depth + 1):
-            return True
-    
-    # Check children
-    for child in person.get_children():
-        if has_circular_relationship(child, visited.copy(), depth + 1):
-            return True
+    try:
+        # Check parents
+        if hasattr(person, 'get_parents'):
+            for parent in person.get_parents():
+                if has_circular_relationship(parent, visited.copy(), depth + 1):
+                    return True
+        
+        # Check children
+        if hasattr(person, 'get_children'):
+            for child in person.get_children():
+                if has_circular_relationship(child, visited.copy(), depth + 1):
+                    return True
+    except Exception:
+        pass  # Skip if methods don't exist or fail
     
     return False
 
 
 def get_generation_level(person, root_person=None):
     """Calculate the generation level of a person relative to a root person"""
-    if root_person is None:
-        # Find the oldest ancestor as root
-        current = person
-        while current.get_parents():
-            current = current.get_parents()[0]
-        root_person = current
-    
-    if person == root_person:
-        return 0
-    
-    # BFS to find shortest path to root
-    from collections import deque
-    
-    queue = deque([(person, 0)])
-    visited = set([person.id])
-    
-    while queue:
-        current_person, level = queue.popleft()
+    try:
+        if root_person is None:
+            # Find the oldest ancestor as root
+            current = person
+            if hasattr(current, 'get_parents'):
+                while current.get_parents():
+                    parents = current.get_parents()
+                    if parents:
+                        current = parents[0]
+                    else:
+                        break
+            root_person = current
         
-        # Check parents (go up one generation)
-        for parent in current_person.get_parents():
-            if parent == root_person:
-                return -(level + 1)  # Negative for ancestors
-            
-            if parent.id not in visited:
-                visited.add(parent.id)
-                queue.append((parent, level + 1))
+        if person == root_person:
+            return 0
         
-        # Check children (go down one generation)
-        for child in current_person.get_children():
-            if child == root_person:
-                return level + 1  # Positive for descendants
+        # BFS to find shortest path to root
+        from collections import deque
+        
+        queue = deque([(person, 0)])
+        visited = set([person.id])
+        
+        while queue:
+            current_person, level = queue.popleft()
             
-            if child.id not in visited:
-                visited.add(child.id)
-                queue.append((child, level + 1))
-    
-    return None  # No relationship found
+            # Check parents (go up one generation)
+            if hasattr(current_person, 'get_parents'):
+                for parent in current_person.get_parents():
+                    if parent == root_person:
+                        return -(level + 1)  # Negative for ancestors
+                    
+                    if parent.id not in visited:
+                        visited.add(parent.id)
+                        queue.append((parent, level + 1))
+            
+            # Check children (go down one generation)
+            if hasattr(current_person, 'get_children'):
+                for child in current_person.get_children():
+                    if child == root_person:
+                        return level + 1  # Positive for descendants
+                    
+                    if child.id not in visited:
+                        visited.add(child.id)
+                        queue.append((child, level + 1))
+        
+        return None  # No relationship found
+    except Exception:
+        return None
 
 
 def get_family_statistics():
     """Get statistics about the family tree"""
-    from django.db.models import Count, Min, Max
-    
-    stats = {}
-    
-    # Basic counts
-    stats['total_people'] = Person.objects.count()
-    stats['deceased_people'] = Person.objects.filter(is_deceased=True).count()
-    stats['living_people'] = stats['total_people'] - stats['deceased_people']
-    
-    # Gender distribution
-    stats['male_count'] = Person.objects.filter(gender='M').count()
-    stats['female_count'] = Person.objects.filter(gender='F').count()
-    stats['other_gender_count'] = Person.objects.filter(gender='O').count()
-    
-    # Age statistics
-    birth_years = Person.objects.filter(birth_date__isnull=False).aggregate(
-        oldest=Min('birth_date__year'),
-        youngest=Max('birth_date__year')
-    )
-    
-    if birth_years['oldest'] and birth_years['youngest']:
-        stats['oldest_birth_year'] = birth_years['oldest']
-        stats['youngest_birth_year'] = birth_years['youngest']
-        stats['year_span'] = birth_years['youngest'] - birth_years['oldest']
-    
-    # Relationship counts
-    stats['partnerships'] = Partnership.objects.filter(status='confirmed').count()
-    stats['parent_child_relations'] = ParentChild.objects.filter(status='confirmed').count()
-    
-    # Generation analysis
-    generation_levels = []
-    root_people = Person.objects.filter(
-        parent_relationships__isnull=True
-    ).distinct()
-    
-    for root in root_people:
-        levels = []
-        descendants = get_all_descendants(root)
-        for person in descendants:
-            level = get_generation_level(person, root)
-            if level is not None:
-                levels.append(level)
+    try:
+        stats = {
+            'total_people': Person.objects.count(),
+            'living_people': Person.objects.filter(is_deceased=False).count(),
+            'deceased_people': Person.objects.filter(is_deceased=True).count(),
+            'total_partnerships': Partnership.objects.count(),
+            'confirmed_partnerships': Partnership.objects.filter(status='confirmed').count(),
+            'total_generations': 0,
+            'oldest_person': None,
+            'youngest_person': None,
+        }
         
-        if levels:
-            generation_levels.extend(levels)
-    
-    if generation_levels:
-        stats['max_generations'] = max(generation_levels) - min(generation_levels) + 1
-        stats['deepest_generation'] = max(generation_levels)
-        stats['highest_generation'] = min(generation_levels)
-    
-    return stats
+        # Calculate generations
+        people_with_birth_dates = Person.objects.filter(birth_date__isnull=False)
+        if people_with_birth_dates.exists():
+            oldest = people_with_birth_dates.order_by('birth_date').first()
+            youngest = people_with_birth_dates.order_by('-birth_date').first()
+            
+            stats['oldest_person'] = oldest
+            stats['youngest_person'] = youngest
+            
+            if oldest and youngest and oldest.birth_date and youngest.birth_date:
+                year_span = youngest.birth_date.year - oldest.birth_date.year
+                stats['total_generations'] = max(1, year_span // 25)  # Approximate generations
+        
+        return stats
+    except Exception as e:
+        print(f"Error calculating family statistics: {e}")
+        return {
+            'total_people': 0,
+            'living_people': 0,
+            'deceased_people': 0,
+            'total_partnerships': 0,
+            'confirmed_partnerships': 0,
+            'total_generations': 0,
+            'oldest_person': None,
+            'youngest_person': None,
+        }
 
 
-def get_all_descendants(person, visited=None):
-    """Get all descendants of a person"""
-    if visited is None:
-        visited = set()
+def export_family_data(format_type='json'):
+    """Export family data in various formats"""
+    try:
+        people = Person.objects.all()
+        partnerships = Partnership.objects.all()
+        parent_child_relations = ParentChild.objects.all()
+        
+        if format_type == 'json':
+            data = {
+                'people': [
+                    {
+                        'id': person.id,
+                        'first_name': person.first_name,
+                        'last_name': person.last_name,
+                        'maiden_name': person.maiden_name,
+                        'gender': person.gender,
+                        'birth_date': person.birth_date.isoformat() if person.birth_date else None,
+                        'death_date': person.death_date.isoformat() if person.death_date else None,
+                        'birth_place': person.birth_place,
+                        'death_place': person.death_place,
+                        'profession': person.profession,
+                        'biography': person.biography,
+                        'is_deceased': person.is_deceased,
+                    }
+                    for person in people
+                ],
+                'partnerships': [
+                    {
+                        'id': partnership.id,
+                        'person1_id': partnership.person1.id,
+                        'person2_id': partnership.person2.id,
+                        'partnership_type': partnership.partnership_type,
+                        'start_date': partnership.start_date.isoformat() if partnership.start_date else None,
+                        'end_date': partnership.end_date.isoformat() if partnership.end_date else None,
+                        'location': partnership.location,
+                        'status': partnership.status,
+                    }
+                    for partnership in partnerships
+                ],
+                'parent_child_relations': [
+                    {
+                        'id': relation.id,
+                        'parent_id': relation.parent.id,
+                        'child_id': relation.child.id,
+                        'relationship_type': relation.relationship_type,
+                    }
+                    for relation in parent_child_relations
+                ]
+            }
+            return json.dumps(data, indent=2, ensure_ascii=False)
+        
+        elif format_type == 'gedcom':
+            return generate_gedcom_export()
+        
+        else:
+            raise ValueError(f"Unsupported format: {format_type}")
     
-    if person.id in visited:
-        return []
-    
-    visited.add(person.id)
-    descendants = [person]
-    
-    for child in person.get_children():
-        descendants.extend(get_all_descendants(child, visited))
-    
-    return descendants
+    except Exception as e:
+        print(f"Error exporting family data: {e}")
+        return f"Error exporting data: {e}"

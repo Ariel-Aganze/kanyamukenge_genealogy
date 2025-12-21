@@ -23,8 +23,11 @@ urlpatterns = [
     # Modification proposals
     path('proposal/<int:proposal_id>/review/', views.review_proposal, name='review_proposal'),
     
-    # Admin views
+    # Admin views - User management
     path('manage-users/', views.manage_users, name='manage_users'),
+    path('manage-users/<int:user_id>/edit/', views.edit_user, name='edit_user'),
+    path('manage-users/<int:user_id>/toggle/', views.toggle_user, name='toggle_user'),
+    path('manage-users/<int:user_id>/delete/', views.delete_user, name='delete_user'),
     path('audit-log/', views.audit_log, name='audit_log'),
     
     # Export

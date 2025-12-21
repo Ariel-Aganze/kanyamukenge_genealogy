@@ -1,18 +1,18 @@
 from django import forms
-from django.contrib.auth import get_user_model
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from django.core.exceptions import ValidationError
 from .models import Person, Partnership, ParentChild, ModificationProposal, FamilyEvent, Document
 
-User = get_user_model()
 
 class PersonForm(forms.ModelForm):
-    """Form for creating/editing person information"""
+    """Form for creating and editing people"""
     
     class Meta:
         model = Person
         fields = [
             'first_name', 'last_name', 'maiden_name', 'gender',
             'birth_date', 'birth_place', 'death_date', 'death_place',
-            'biography', 'profession', 'education', 'photo', 'visibility'
+            'profession', 'education', 'biography', 'photo', 'visibility'
         ]
         widgets = {
             'first_name': forms.TextInput(attrs={
@@ -46,11 +46,6 @@ class PersonForm(forms.ModelForm):
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
                 'placeholder': 'Lieu de décès'
             }),
-            'biography': forms.Textarea(attrs={
-                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
-                'rows': 4,
-                'placeholder': 'Biographie, histoire de vie, anecdotes...'
-            }),
             'profession': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
                 'placeholder': 'Profession'
@@ -58,7 +53,12 @@ class PersonForm(forms.ModelForm):
             'education': forms.Textarea(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
                 'rows': 3,
-                'placeholder': 'Formation, éducation...'
+                'placeholder': 'Éducation et formation...'
+            }),
+            'biography': forms.Textarea(attrs={
+                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
+                'rows': 4,
+                'placeholder': 'Biographie, histoire de vie, anecdotes...'
             }),
             'photo': forms.FileInput(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent'
@@ -68,18 +68,10 @@ class PersonForm(forms.ModelForm):
             })
         }
 
-    def clean(self):
-        cleaned_data = super().clean()
-        birth_date = cleaned_data.get('birth_date')
-        death_date = cleaned_data.get('death_date')
-        
-        if birth_date and death_date and birth_date >= death_date:
-            raise forms.ValidationError("La date de naissance doit être antérieure à la date de décès.")
-        
-        return cleaned_data
-
 
 class PartnershipForm(forms.ModelForm):
+    """Form for creating partnerships/marriages"""
+    
     class Meta:
         model = Partnership
         fields = ['person2', 'partnership_type', 'start_date', 'end_date', 'location', 'notes']
@@ -91,36 +83,32 @@ class PartnershipForm(forms.ModelForm):
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent'
             }),
             'start_date': forms.DateInput(attrs={
-                'type': 'date',
-                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent'
+                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
+                'type': 'date'
             }),
             'end_date': forms.DateInput(attrs={
-                'type': 'date', 
-                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent'
+                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
+                'type': 'date'
             }),
             'location': forms.TextInput(attrs={
-                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent'
+                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
+                'placeholder': 'Lieu du mariage/union'
             }),
             'notes': forms.Textarea(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
-                'rows': 3
-            }),
+                'rows': 3,
+                'placeholder': 'Notes additionnelles...'
+            })
         }
 
-    def __init__(self, *args, **kwargs):
-        # ✅ Extraire person1 AVANT d'appeler super()
-        self.person1 = kwargs.pop('person1', None)
-        
+    def __init__(self, *args, person1=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.person1 = person1
         
-        # ✅ Filtrer les choix pour person2 (exclure person1 si fourni)
-        if self.person1:
-            # Exclure la personne elle-même des choix
-            self.fields['person2'].queryset = Person.objects.exclude(id=self.person1.id)
-        
-        # ✅ Personnaliser les choix pour person2
-        self.fields['person2'].queryset = Person.objects.all().order_by('first_name', 'last_name')
-        self.fields['person2'].empty_label = "Sélectionner un conjoint"
+        if person1:
+            # Exclude person1 from partner choices
+            self.fields['person2'].queryset = Person.objects.exclude(id=person1.id).order_by('first_name', 'last_name')
+            self.fields['person2'].empty_label = "Sélectionner un conjoint"
 
 
 class ParentChildForm(forms.ModelForm):
@@ -144,17 +132,53 @@ class ParentChildForm(forms.ModelForm):
         }
 
     def __init__(self, *args, parent=None, **kwargs):
-        # FIXED: Proper parameter handling
         super().__init__(*args, **kwargs)
         self.parent = parent
         
         if parent:
             # Exclude parent from child choices and existing children
-            existing_children = [rel.child.id for rel in ParentChild.objects.filter(parent=parent)]
+            existing_children_ids = list(ParentChild.objects.filter(
+                parent=parent
+            ).values_list('child_id', flat=True))
+            
+            # Also exclude the parent themselves
+            excluded_ids = [parent.id] + existing_children_ids
+            
             self.fields['child'].queryset = Person.objects.exclude(
-                id__in=[parent.id] + existing_children
+                id__in=excluded_ids
             ).order_by('first_name', 'last_name')
             self.fields['child'].empty_label = "Sélectionner un enfant"
+            
+            # Add helpful labels
+            self.fields['child'].help_text = f"Sélectionnez l'enfant à ajouter à {parent.get_full_name()}"
+            
+    def clean(self):
+        cleaned_data = super().clean()
+        child = cleaned_data.get('child')
+        
+        if self.parent and child:
+            # Check if the child is the same as the parent
+            if child.id == self.parent.id:
+                raise forms.ValidationError("Une personne ne peut pas être son propre parent.")
+            
+            # Check if relationship already exists
+            if ParentChild.objects.filter(parent=self.parent, child=child).exists():
+                raise forms.ValidationError(f"{child.get_full_name()} est déjà enregistré(e) comme enfant de {self.parent.get_full_name()}.")
+            
+            # Check age logic if birth dates exist
+            if self.parent.birth_date and child.birth_date:
+                parent_birth = self.parent.birth_date
+                child_birth = child.birth_date
+                
+                if parent_birth >= child_birth:
+                    raise forms.ValidationError("Le parent doit être né avant l'enfant.")
+                
+                # Check reasonable age difference (at least 10 years)
+                age_diff = (child_birth - parent_birth).days / 365.25
+                if age_diff < 10:
+                    raise forms.ValidationError("L'écart d'âge entre parent et enfant semble trop petit (moins de 10 ans).")
+        
+        return cleaned_data
 
 
 class ModificationProposalForm(forms.ModelForm):
@@ -165,8 +189,8 @@ class ModificationProposalForm(forms.ModelForm):
         ('last_name', 'Nom de famille'),
         ('maiden_name', 'Nom de jeune fille'),
         ('birth_date', 'Date de naissance'),
-        ('birth_place', 'Lieu de naissance'),
         ('death_date', 'Date de décès'),
+        ('birth_place', 'Lieu de naissance'),
         ('death_place', 'Lieu de décès'),
         ('profession', 'Profession'),
         ('biography', 'Biographie'),
@@ -183,15 +207,14 @@ class ModificationProposalForm(forms.ModelForm):
         model = ModificationProposal
         fields = ['field_name', 'new_value', 'justification']
         widgets = {
-            'new_value': forms.Textarea(attrs={
+            'new_value': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
-                'rows': 3,
-                'placeholder': 'Nouvelle valeur...'
+                'placeholder': 'Nouvelle valeur'
             }),
             'justification': forms.Textarea(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
-                'rows': 4,
-                'placeholder': 'Justification de la modification, sources...'
+                'rows': 3,
+                'placeholder': 'Justification de la modification...'
             })
         }
 
@@ -265,7 +288,7 @@ class SearchForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={
             'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
-            'placeholder': 'Rechercher une personne...'
+            'placeholder': 'Nom, prénom, lieu...'
         })
     )
     
@@ -294,7 +317,11 @@ class SearchForm(forms.Form):
     )
     
     is_deceased = forms.ChoiceField(
-        choices=[('', 'Tous'), ('True', 'Décédés'), ('False', 'Vivants')],
+        choices=[
+            ('', 'Tous'),
+            ('False', 'Vivants'),
+            ('True', 'Décédés'),
+        ],
         required=False,
         widget=forms.Select(attrs={
             'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent'

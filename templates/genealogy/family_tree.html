@@ -1,491 +1,687 @@
 {% extends 'base/dashboard.html' %}
-{% load genealogy_tags %}
 
 {% block title %}Arbre Généalogique - Famille KANYAMUKENGE{% endblock %}
 {% block page_title %}Arbre Généalogique{% endblock %}
 
-{% block extra_head %}
-<script src="https://d3js.org/d3.v7.min.js"></script>
-<style>
-    .tree-container {
-        width: 100%;
-        height: 800px;
-        border: 1px solid #E7E5E4;
-        border-radius: 12px;
-        position: relative;
-        overflow: auto;
-        background: #FAFAF9;
-    }
-    
-    .tree-node {
-        cursor: pointer;
-    }
-    
-    .tree-node-rect {
-        fill: white;
-        stroke: #14532D;
-        stroke-width: 2;
-        rx: 8;
-        ry: 8;
-    }
-    
-    .tree-node:hover .tree-node-rect {
-        stroke: #16a34a;
-        stroke-width: 3;
-    }
-    
-    .tree-node-text {
-        font-family: 'Inter', sans-serif;
-        font-size: 10px;
-        fill: #1F2937;
-        text-anchor: middle;
-        dominant-baseline: middle;
-        pointer-events: none;
-    }
-    
-    .marriage-line {
-        stroke: #dc2626;
-        stroke-width: 3;
-        fill: none;
-    }
-    
-    .family-line {
-        stroke: #14532D;
-        stroke-width: 2;
-        fill: none;
-    }
-    
-    .generation-label {
-        font-family: 'Inter', sans-serif;
-        font-size: 12px;
-        fill: #6b7280;
-        font-weight: bold;
-    }
-</style>
-{% endblock %}
+{% load static %}
 
 {% block dashboard_content %}
 <div class="max-w-full mx-auto">
-    <!-- Header -->
-    <div class="bg-white rounded-xl border border-brand-border p-6 mb-6 shadow-sm">
-        <div class="flex justify-between items-center">
-            <div>
-                <h1 class="font-serif text-2xl font-bold text-brand-primary mb-2">Arbre généalogique complet</h1>
-                <p class="text-gray-600">Structure complète de la famille KANYAMUKENGE</p>
+    
+    <!-- Header Section -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6 mb-6">
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+            <div class="flex-1">
+                <h1 class="font-serif text-3xl font-bold text-brand-primary mb-2">
+                    Arbre Généalogique KANYAMUKENGE
+                </h1>
+                <p class="text-gray-600 mb-4">
+                    Explorez l'histoire et les liens familiaux à travers les générations
+                </p>
+                <div class="flex flex-wrap gap-4 text-sm text-gray-500">
+                    <span class="flex items-center gap-2">
+                        <i data-feather="users" class="w-4 h-4"></i>
+                        <span id="total-members">0</span> membres
+                    </span>
+                    <span class="flex items-center gap-2">
+                        <i data-feather="layers" class="w-4 h-4"></i>
+                        <span id="total-generations">0</span> générations
+                    </span>
+                </div>
             </div>
             
-            <div class="flex gap-3">
-                <button onclick="resetView()" class="px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition text-sm">
-                    <i data-feather="home" class="w-4 h-4 inline mr-1"></i>
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="centerTree()" 
+                        class="px-6 py-3 bg-brand-primary text-white font-medium rounded-lg hover:bg-green-800 transition-all duration-200 flex items-center gap-2">
+                    <i data-feather="home" class="w-4 h-4"></i>
                     Recentrer
                 </button>
-                
-                <button onclick="expandTree()" class="px-4 py-2 bg-brand-accent text-white rounded-lg hover:bg-amber-800 transition text-sm">
-                    <i data-feather="maximize" class="w-4 h-4 inline mr-1"></i>
+                <button onclick="expandAll()" 
+                        class="px-6 py-3 bg-brand-accent text-white font-medium rounded-lg hover:bg-amber-800 transition-all duration-200 flex items-center gap-2">
+                    <i data-feather="maximize-2" class="w-4 h-4"></i>
                     Agrandir
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Tree Container -->
-    <div class="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
-        <div class="tree-container" id="treeContainer">
-            <svg id="familyTreeSvg" width="100%" height="100%"></svg>
-            
-            <!-- Loading indicator -->
-            <div id="treeLoading" class="absolute inset-0 flex items-center justify-center bg-white/90">
-                <div class="text-center">
-                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary mx-auto mb-4"></div>
-                    <p class="text-gray-600">Construction de l'arbre généalogique...</p>
+    <!-- Controls Panel -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm p-4 mb-6">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium text-gray-700">Point de départ:</label>
+                    <select id="rootPersonSelect" 
+                            class="px-4 py-2 border border-brand-border rounded-lg text-sm focus:ring-2 focus:ring-brand-primary focus:border-transparent">
+                        <option value="">Sélectionner une personne...</option>
+                        {% for person in all_people %}
+                        <option value="{{ person.id }}" {% if person.id == center_person.id %}selected{% endif %}>
+                            {{ person.get_full_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
                 </div>
             </div>
             
-            <!-- Legend -->
-            <div class="absolute bottom-4 right-4 bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-sm border">
-                <h4 class="text-xs font-semibold text-gray-700 mb-2">Légende</h4>
-                <div class="space-y-1 text-xs">
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 bg-blue-100 border border-blue-400 rounded"></div>
-                        <span class="text-gray-600">Homme</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-3 h-3 bg-pink-100 border border-pink-400 rounded"></div>
-                        <span class="text-gray-600">Femme</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-6 h-0.5 bg-red-600"></div>
-                        <span class="text-gray-600">Mariage</span>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <div class="w-6 h-0.5 bg-green-700"></div>
-                        <span class="text-gray-600">Filiation</span>
-                    </div>
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2 text-sm text-gray-600">
+                    <i data-feather="zoom-in" class="w-4 h-4"></i>
+                    Zoom
+                </div>
+                <button onclick="zoomOut()" class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                    <i data-feather="minus" class="w-4 h-4"></i>
+                </button>
+                <span id="zoom-level" class="px-3 py-1 bg-gray-50 border border-brand-border rounded-lg text-sm font-mono">100%</span>
+                <button onclick="zoomIn()" class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                    <i data-feather="plus" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Family Tree Display -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">        
+        <div id="treeContainer" class="relative bg-gradient-to-br from-slate-50 via-white to-blue-50 min-h-screen overflow-auto">
+            <!-- Loading State -->
+            <div id="treeLoading" class="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-10">
+                <div class="text-center">
+                    <div class="w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-4 mx-auto"></div>
+                    <p class="text-gray-600 font-medium">Construction de l'arbre généalogique...</p>
+                </div>
+            </div>
+            
+            <!-- SVG Canvas -->
+            <svg id="familyTreeSvg" class="w-full h-full min-h-screen">
+                <!-- Definitions for patterns and gradients -->
+                <defs>
+                    <!-- Card drop shadow -->
+                    <filter id="cardShadow" x="-50%" y="-50%" width="200%" height="200%">
+                        <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+                        <feOffset dx="2" dy="4" result="offset"/>
+                        <feFlood flood-color="#000000" flood-opacity="0.1"/>
+                        <feComposite in2="offset" operator="in"/>
+                        <feMerge>
+                            <feMergeNode/>
+                            <feMergeNode in="SourceGraphic"/>
+                        </feMerge>
+                    </filter>
+                </defs>
+            </svg>
+            
+            <!-- Info Panel -->
+            <div id="infoPanel" class="absolute top-6 right-6 max-w-sm bg-white rounded-xl shadow-lg border border-brand-border p-5 hidden transform transition-all duration-300">
+                <div class="flex items-start justify-between mb-4">
+                    <h3 class="font-serif text-lg font-semibold text-brand-primary" id="infoPanelName">-</h3>
+                    <button onclick="hideInfoPanel()" class="text-gray-400 hover:text-gray-600 transition">
+                        <i data-feather="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+                <div id="infoPanelContent" class="space-y-3 text-sm text-gray-600">
+                    <!-- Dynamic content -->
+                </div>
+                <div class="flex gap-2 mt-4 pt-4 border-t border-gray-100">
+                    <button id="viewDetailsBtn" onclick="viewPersonDetails()" 
+                            class="flex-1 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition text-sm font-medium">
+                        Voir la fiche complète
+                    </button>
+                    <button onclick="focusOnPerson()" 
+                            class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition text-sm">
+                        Centrer
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<style>
+/* Tree Styles - NO HOVER EFFECTS */
+.tree-node {
+    cursor: pointer;
+}
+
+.tree-node-card {
+    /* No hover effects */
+}
+
+.connection-line {
+    stroke: #9ca3af;
+    stroke-width: 2;
+    fill: none;
+    opacity: 0.7;
+}
+
+.marriage-line {
+    stroke: #ef4444;
+    stroke-width: 3;
+    fill: none;
+    opacity: 0.8;
+}
+
+.generation-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    fill: #6b7280;
+    text-anchor: start;
+}
+
+/* Photo loading styles */
+.photo-loading {
+    opacity: 0.7;
+}
+
+.photo-error {
+    display: none;
+}
+</style>
+
 <script>
 // Global variables
 let treeData = {{ tree_data|safe }};
 let svg, g;
 let currentScale = 1;
+let currentTransform = { x: 0, y: 0 };
+let selectedPersonId = null;
 
-console.log('Complete tree data loaded:', treeData);
+// Tree layout configuration
+const config = {
+    nodeWidth: 220,
+    nodeHeight: 120,
+    horizontalSpacing: 80,
+    verticalSpacing: 150,
+    generationHeight: 180,
+    colors: {
+        male: { fill: '#dbeafe', stroke: '#3b82f6' },
+        female: { fill: '#fce7f3', stroke: '#ec4899' },
+        unknown: { fill: '#f3f4f6', stroke: '#6b7280' }
+    }
+};
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    initializeCompleteTree();
-    setTimeout(() => {
-        const loading = document.getElementById('treeLoading');
-        if (loading) loading.style.display = 'none';
-    }, 1500);
+    console.log('Tree data:', treeData);
+    initializeFamilyTree();
+    setupEventListeners();
 });
 
-function initializeCompleteTree() {
+function initializeFamilyTree() {
     const container = document.getElementById('treeContainer');
     const width = container.clientWidth;
     const height = container.clientHeight;
-    
-    console.log('Initializing complete tree:', width, height);
-    
-    // Clear existing SVG
-    d3.select("#familyTreeSvg").selectAll("*").remove();
     
     svg = d3.select("#familyTreeSvg")
         .attr("width", width)
         .attr("height", height);
     
+    // Clear existing content
+    svg.selectAll("*").remove();
+    
+    // Add definitions
+    const defs = svg.append("defs");
+    defs.html(`
+        <filter id="cardShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+            <feOffset dx="2" dy="4" result="offset"/>
+            <feFlood flood-color="#000000" flood-opacity="0.1"/>
+            <feComposite in2="offset" operator="in"/>
+            <feMerge>
+                <feMergeNode/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+    `);
+    
     // Add zoom behavior
     const zoom = d3.zoom()
         .scaleExtent([0.1, 3])
-        .on("zoom", (event) => {
-            g.attr("transform", event.transform);
-        });
+        .on("zoom", handleZoom);
     
     svg.call(zoom);
     
-    g = svg.append("g");
+    // Main group for all elements
+    g = svg.append("g").attr("class", "main-group");
     
-    // Draw the complete family tree
-    drawCompleteGenealogyTree();
+    // Render the family tree
+    renderFamilyTree();
+    
+    // Center the tree initially
+    setTimeout(() => {
+        centerTree();
+        hideLoading();
+    }, 1000);
 }
 
-function drawCompleteGenealogyTree() {
+function renderFamilyTree() {
     if (!treeData || !treeData.individuals) {
         showError('Aucune donnée généalogique disponible');
         return;
     }
     
-    const individuals = treeData.individuals;
-    console.log('Drawing tree with', Object.keys(individuals).length, 'individuals');
+    console.log('Rendering tree with', Object.keys(treeData.individuals).length, 'individuals');
     
     // Build generation structure
-    const generations = buildGenerationStructure(individuals);
+    const generations = buildGenerationStructure(treeData.individuals);
+    console.log('Built generations:', generations);
     
-    // Calculate layout
+    // Update statistics
+    updateStatistics(treeData.individuals, generations);
+    
+    // Calculate positions
     const layout = calculateTreeLayout(generations);
     
-    // Draw connections first (so they appear behind nodes)
-    drawAllConnections(layout, individuals);
-    
-    // Draw generation labels
+    // Render elements in order
     drawGenerationLabels(layout);
-    
-    // Draw all person nodes
-    drawAllNodes(layout);
-    
-    console.log('Complete genealogy tree rendered');
+    drawConnections(layout);
+    drawPersonNodes(layout);
 }
 
 function buildGenerationStructure(individuals) {
-    const generations = new Map(); // generation_level -> people
-    const personLevels = new Map(); // person_id -> level
+    const generations = new Map();
+    const processed = new Set();
     
-    // Find root people (those with no parents)
-    const roots = [];
-    Object.values(individuals).forEach(person => {
-        if (!person.parents || person.parents.length === 0) {
-            roots.push(person);
-        }
-    });
+    // Find root people (those without parents)
+    const rootPeople = Object.values(individuals).filter(person => 
+        !person.parents || person.parents.length === 0
+    );
     
-    if (roots.length === 0) {
-        // If no clear roots, use all people
-        roots.push(...Object.values(individuals));
-    }
+    console.log('Root people found:', rootPeople.length);
     
-    // Assign generation levels using BFS
-    function assignLevels(startPeople, startLevel = 0) {
-        const queue = startPeople.map(p => ({person: p, level: startLevel}));
-        const visited = new Set();
+    if (rootPeople.length === 0) {
+        // If no clear roots, take the oldest person
+        const oldestPerson = Object.values(individuals).reduce((oldest, person) => {
+            if (!oldest) return person;
+            const oldestYear = oldest.birth_year || 9999;
+            const personYear = person.birth_year || 9999;
+            return personYear < oldestYear ? person : oldest;
+        }, null);
         
-        while (queue.length > 0) {
-            const {person, level} = queue.shift();
-            
-            if (visited.has(person.id)) continue;
-            visited.add(person.id);
-            
-            personLevels.set(person.id, level);
-            
-            if (!generations.has(level)) {
-                generations.set(level, []);
-            }
-            generations.get(level).push(person);
-            
-            // Add children to next level
-            if (person.children) {
-                person.children.forEach(childId => {
-                    const child = individuals[childId];
-                    if (child && !visited.has(childId)) {
-                        queue.push({person: child, level: level + 1});
-                    }
-                });
-            }
+        if (oldestPerson) rootPeople.push(oldestPerson);
+    }
+    
+    // Build generations using BFS
+    let currentGeneration = 0;
+    let queue = rootPeople.map(person => ({ person, generation: 0 }));
+    
+    while (queue.length > 0) {
+        const { person, generation } = queue.shift();
+        
+        if (processed.has(person.id)) continue;
+        processed.add(person.id);
+        
+        if (!generations.has(generation)) {
+            generations.set(generation, []);
+        }
+        
+        generations.get(generation).push(person);
+        
+        // Add children to next generation
+        if (person.children && person.children.length > 0) {
+            person.children.forEach(childId => {
+                const child = individuals[childId];
+                if (child && !processed.has(childId)) {
+                    queue.push({ person: child, generation: generation + 1 });
+                }
+            });
         }
     }
     
-    assignLevels(roots);
-    
-    // Sort generations by level
-    const sortedGenerations = Array.from(generations.keys()).sort((a, b) => a - b);
-    
-    return sortedGenerations.map(level => ({
-        level,
-        people: generations.get(level) || []
-    }));
+    return generations;
 }
 
 function calculateTreeLayout(generations) {
-    const nodeWidth = 130;
-    const nodeHeight = 80;
-    const horizontalSpacing = 40;
-    const verticalSpacing = 120;
-    const marriageSpacing = 20;
-    
     const layout = [];
-    let currentY = 50;
+    let currentY = 100;
     
-    generations.forEach(generation => {
-        const couples = groupPeopleIntoCouples(generation.people);
-        
-        // Calculate total width needed for this generation
-        const totalWidth = couples.reduce((width, couple) => {
-            return width + (couple.length * nodeWidth) + 
-                   ((couple.length - 1) * marriageSpacing) + horizontalSpacing;
-        }, 0) - horizontalSpacing;
-        
-        let currentX = Math.max(50, (window.innerWidth - totalWidth) / 2);
-        
-        const generationLayout = {
-            level: generation.level,
+    generations.forEach((people, generationLevel) => {
+        const generationData = {
+            level: generationLevel,
             y: currentY,
-            couples: []
+            people: []
         };
         
-        couples.forEach(couple => {
-            const coupleLayout = {
-                people: [],
-                centerX: currentX + ((couple.length * nodeWidth + (couple.length - 1) * marriageSpacing) / 2)
-            };
+        // Calculate x positions to center the generation
+        const totalWidth = people.length * config.nodeWidth + (people.length - 1) * config.horizontalSpacing;
+        let startX = (document.getElementById('treeContainer').clientWidth - totalWidth) / 2;
+        
+        people.forEach((person, index) => {
+            const x = startX + index * (config.nodeWidth + config.horizontalSpacing);
             
-            couple.forEach((person, index) => {
-                const personX = currentX + (index * (nodeWidth + marriageSpacing));
-                
-                coupleLayout.people.push({
-                    ...person,
-                    x: personX,
-                    y: currentY,
-                    width: nodeWidth,
-                    height: nodeHeight
-                });
+            generationData.people.push({
+                ...person,
+                x: x,
+                y: currentY,
+                generation: generationLevel
             });
-            
-            generationLayout.couples.push(coupleLayout);
-            currentX += (couple.length * nodeWidth) + ((couple.length - 1) * marriageSpacing) + horizontalSpacing;
         });
         
-        layout.push(generationLayout);
-        currentY += verticalSpacing;
+        layout.push(generationData);
+        currentY += config.generationHeight;
     });
     
     return layout;
 }
 
-function groupPeopleIntoCouples(people) {
-    const couples = [];
-    const processed = new Set();
-    
-    people.forEach(person => {
-        if (processed.has(person.id)) return;
-        
-        const couple = [person];
-        processed.add(person.id);
-        
-        // Find partners
-        if (person.partners) {
-            person.partners.forEach(partnerId => {
-                const partner = people.find(p => p.id === partnerId);
-                if (partner && !processed.has(partnerId)) {
-                    couple.push(partner);
-                    processed.add(partnerId);
-                }
-            });
-        }
-        
-        couples.push(couple);
+function drawGenerationLabels(layout) {
+    layout.forEach(generation => {
+        g.append('text')
+            .attr('class', 'generation-label fade-in')
+            .attr('x', 30)
+            .attr('y', generation.y + 50)
+            .text(`Génération ${generation.level + 1}`)
+            .style('animation-delay', `${generation.level * 0.2}s`);
     });
-    
-    return couples;
 }
 
-function drawAllConnections(layout, individuals) {
-    // Draw marriage connections
-    layout.forEach(generation => {
-        generation.couples.forEach(couple => {
-            if (couple.people.length > 1) {
-                for (let i = 0; i < couple.people.length - 1; i++) {
-                    const person1 = couple.people[i];
-                    const person2 = couple.people[i + 1];
-                    
-                    g.append('line')
-                        .attr('class', 'marriage-line')
-                        .attr('x1', person1.x + person1.width)
-                        .attr('y1', person1.y + person1.height / 2)
-                        .attr('x2', person2.x)
-                        .attr('y2', person2.y + person2.height / 2);
-                }
-            }
-        });
-    });
+function drawConnections(layout) {
+    const individuals = treeData.individuals;
     
     // Draw parent-child connections
     layout.forEach(generation => {
-        generation.couples.forEach(couple => {
-            // Find children in next generations
-            const allChildren = new Set();
-            couple.people.forEach(person => {
-                if (person.children) {
-                    person.children.forEach(childId => allChildren.add(childId));
-                }
-            });
-            
-            if (allChildren.size > 0) {
-                const parentCenterX = couple.centerX;
-                const parentBottomY = generation.y + 80;
-                
-                // Find children positions in layout
-                layout.forEach(childGeneration => {
-                    if (childGeneration.level > generation.level) {
-                        childGeneration.couples.forEach(childCouple => {
-                            childCouple.people.forEach(child => {
-                                if (allChildren.has(child.id)) {
-                                    const childTopY = child.y;
-                                    const childCenterX = child.x + child.width / 2;
-                                    
-                                    // Vertical line from parent to child
-                                    g.append('path')
-                                        .attr('class', 'family-line')
-                                        .attr('d', `M ${parentCenterX} ${parentBottomY} L ${parentCenterX} ${parentBottomY + 30} L ${childCenterX} ${childTopY - 30} L ${childCenterX} ${childTopY}`);
-                                }
-                            });
+        generation.people.forEach(person => {
+            if (person.children && person.children.length > 0) {
+                person.children.forEach(childId => {
+                    const child = individuals[childId];
+                    if (child) {
+                        // Find child's position in layout
+                        layout.forEach(childGeneration => {
+                            const childNode = childGeneration.people.find(p => p.id === childId);
+                            if (childNode) {
+                                drawConnection(
+                                    person.x + config.nodeWidth / 2,
+                                    person.y + config.nodeHeight,
+                                    childNode.x + config.nodeWidth / 2,
+                                    childNode.y,
+                                    'parent-child'
+                                );
+                            }
                         });
                     }
                 });
             }
         });
     });
-}
-
-function drawGenerationLabels(layout) {
+    
+    // FIXED: Draw marriage connections ONLY between actual married couples
+    const processedMarriages = new Set();
+    
     layout.forEach(generation => {
-        g.append('text')
-            .attr('class', 'generation-label')
-            .attr('x', 20)
-            .attr('y', generation.y + 40)
-            .text(`Génération ${generation.level + 1}`);
-    });
-}
-
-function drawAllNodes(layout) {
-    layout.forEach(generation => {
-        generation.couples.forEach(couple => {
-            couple.people.forEach(person => {
-                const nodeGroup = g.append('g')
-                    .attr('class', 'tree-node')
-                    .attr('transform', `translate(${person.x}, ${person.y})`)
-                    .on('click', () => {
-                        if (person.id) {
-                            window.location.href = `/person/${person.id}/`;
-                        }
-                    });
-                
-                // Rectangle
-                nodeGroup.append('rect')
-                    .attr('class', 'tree-node-rect')
-                    .attr('width', person.width)
-                    .attr('height', person.height)
-                    .attr('rx', 8)
-                    .style('fill', getPersonColor(person));
-                
-                // Name
-                nodeGroup.append('text')
-                    .attr('class', 'tree-node-text')
-                    .attr('x', person.width / 2)
-                    .attr('y', 20)
-                    .style('font-weight', 'bold')
-                    .style('font-size', '11px')
-                    .text(truncateText(person.name || 'Inconnu', 16));
-                
-                // Birth/Death years
-                if (person.birth_year) {
-                    const dateText = person.death_year 
-                        ? `${person.birth_year} - ${person.death_year}`
-                        : `*${person.birth_year}`;
+        generation.people.forEach(person => {
+            if (person.partners && person.partners.length > 0) {
+                person.partners.forEach(partnerId => {
+                    const marriageId = [person.id, partnerId].sort().join('-');
                     
-                    nodeGroup.append('text')
-                        .attr('class', 'tree-node-text')
-                        .attr('x', person.width / 2)
-                        .attr('y', 35)
-                        .style('font-size', '9px')
-                        .style('fill', '#6b7280')
-                        .text(dateText);
-                }
-                
-                // Age
-                if (person.age && !person.is_deceased) {
-                    nodeGroup.append('text')
-                        .attr('class', 'tree-node-text')
-                        .attr('x', person.width / 2)
-                        .attr('y', 50)
-                        .style('font-size', '9px')
-                        .style('fill', '#059669')
-                        .text(`${person.age} ans`);
-                }
-                
-                // Profession (if space)
-                if (person.profession) {
-                    nodeGroup.append('text')
-                        .attr('class', 'tree-node-text')
-                        .attr('x', person.width / 2)
-                        .attr('y', 65)
-                        .style('font-size', '8px')
-                        .style('fill', '#9ca3af')
-                        .text(truncateText(person.profession, 14));
-                }
-            });
+                    if (!processedMarriages.has(marriageId)) {
+                        processedMarriages.add(marriageId);
+                        
+                        const partner = individuals[partnerId];
+                        if (partner) {
+                            // Check if partner is in the SAME generation (not different generations)
+                            const partnerNode = generation.people.find(p => p.id === partnerId);
+                            
+                            // IMPORTANT: Only draw marriage line if both are in same generation
+                            // AND they have different parents (i.e., not siblings)
+                            if (partnerNode && !areSiblings(person, partner)) {
+                                console.log(`Drawing marriage line between ${person.name} and ${partner.name}`);
+                                
+                                drawConnection(
+                                    Math.min(person.x + config.nodeWidth, partnerNode.x + config.nodeWidth),
+                                    person.y + config.nodeHeight / 2,
+                                    Math.max(person.x, partnerNode.x),
+                                    partnerNode.y + config.nodeHeight / 2,
+                                    'marriage'
+                                );
+                            } else if (partnerNode && areSiblings(person, partner)) {
+                                console.log(`NOT drawing marriage line between siblings ${person.name} and ${partner.name}`);
+                            } else {
+                                // Partner might be in different generation, try to find them
+                                layout.forEach(otherGeneration => {
+                                    const otherPartnerNode = otherGeneration.people.find(p => p.id === partnerId);
+                                    if (otherPartnerNode && !areSiblings(person, partner)) {
+                                        console.log(`Drawing cross-generation marriage line between ${person.name} and ${partner.name}`);
+                                        
+                                        drawConnection(
+                                            person.x + config.nodeWidth / 2,
+                                            person.y + config.nodeHeight / 2,
+                                            otherPartnerNode.x + config.nodeWidth / 2,
+                                            otherPartnerNode.y + config.nodeHeight / 2,
+                                            'marriage'
+                                        );
+                                    }
+                                });
+                            }
+                        }
+                    }
+                });
+            }
         });
     });
 }
 
-function getPersonColor(person) {
-    switch(person.gender) {
-        case 'M': return '#dbeafe'; // Light blue for male
-        case 'F': return '#fce7f3'; // Light pink for female
-        default: return '#f3f4f6'; // Light gray for unspecified
+function areSiblings(person1, person2) {
+    // Check if two people are siblings (share same parents)
+    if (!person1.parents || !person2.parents || person1.parents.length === 0 || person2.parents.length === 0) {
+        return false;
     }
+    
+    // Check if they share at least one parent
+    const person1Parents = new Set(person1.parents);
+    const person2Parents = new Set(person2.parents);
+    
+    for (let parent of person1Parents) {
+        if (person2Parents.has(parent)) {
+            return true; // They share a parent, so they're siblings
+        }
+    }
+    
+    return false;
+}
+
+function drawConnection(x1, y1, x2, y2, type) {
+    const className = type === 'marriage' ? 'marriage-line' : 'connection-line';
+    
+    if (type === 'parent-child') {
+        // Curved connection for parent-child
+        const midY = y1 + (y2 - y1) / 2;
+        const path = `M ${x1} ${y1} Q ${x1} ${midY} ${x2} ${y2}`;
+        
+        g.append('path')
+            .attr('class', className)
+            .attr('d', path)
+            .style('opacity', 0)
+            .transition()
+            .duration(800)
+            .style('opacity', 0.7);
+    } else {
+        // Straight line for marriages
+        g.append('line')
+            .attr('class', className)
+            .attr('x1', x1)
+            .attr('y1', y1)
+            .attr('x2', x2)
+            .attr('y2', y2)
+            .style('opacity', 0)
+            .transition()
+            .duration(600)
+            .style('opacity', 0.8);
+    }
+}
+
+function drawPersonNodes(layout) {
+    layout.forEach((generation, genIndex) => {
+        generation.people.forEach((person, personIndex) => {
+            const nodeGroup = g.append('g')
+                .attr('class', 'tree-node')
+                .attr('transform', `translate(${person.x}, ${person.y})`)
+                .style('opacity', 0)
+                .on('click', () => showPersonInfo(person));
+            
+            // Card background
+            const cardGroup = nodeGroup.append('g')
+                .attr('class', 'person-card');
+            
+            // Determine colors based on gender
+            const colors = getPersonColors(person);
+            
+            // Main card rectangle
+            cardGroup.append('rect')
+                .attr('width', config.nodeWidth)
+                .attr('height', config.nodeHeight)
+                .attr('rx', 12)
+                .attr('fill', colors.fill)
+                .attr('stroke', colors.stroke)
+                .attr('stroke-width', 2)
+                .attr('filter', 'url(#cardShadow)');
+            
+            // Profile picture or avatar
+            if (person.photo_url) {
+                // Add clip path for circular image
+                const clipId = `clip-${person.id}`;
+                svg.select('defs').append('clipPath')
+                    .attr('id', clipId)
+                    .append('circle')
+                    .attr('cx', config.nodeWidth / 2)
+                    .attr('cy', 25)
+                    .attr('r', 15);
+                
+                // Profile photo
+                const photoImage = cardGroup.append('image')
+                    .attr('x', config.nodeWidth / 2 - 15)
+                    .attr('y', 10)
+                    .attr('width', 30)
+                    .attr('height', 30)
+                    .attr('href', person.photo_url)
+                    .attr('clip-path', `url(#${clipId})`)
+                    .attr('preserveAspectRatio', 'xMidYMid slice')
+                    .style('opacity', 0);
+                
+                // Photo loading animation
+                photoImage.on('load', function() {
+                    d3.select(this)
+                        .transition()
+                        .duration(300)
+                        .style('opacity', 1);
+                });
+                
+                // Fallback to default avatar if photo fails to load
+                photoImage.on('error', function() {
+                    d3.select(this).remove();
+                    // Create default avatar
+                    createDefaultAvatar(cardGroup, colors, person);
+                });
+                
+                // Border circle around photo
+                cardGroup.append('circle')
+                    .attr('cx', config.nodeWidth / 2)
+                    .attr('cy', 25)
+                    .attr('r', 15)
+                    .attr('fill', 'none')
+                    .attr('stroke', colors.stroke)
+                    .attr('stroke-width', 2);
+            } else {
+                // Default avatar circle with gender icon
+                createDefaultAvatar(cardGroup, colors, person);
+            }
+            
+            // Name
+            cardGroup.append('text')
+                .attr('x', config.nodeWidth / 2)
+                .attr('y', 58)
+                .attr('text-anchor', 'middle')
+                .attr('font-family', 'Playfair Display, serif')
+                .attr('font-size', '14px')
+                .attr('font-weight', '600')
+                .attr('fill', '#1f2937')
+                .text(truncateText(person.name || 'Inconnu', 20));
+            
+            // Birth/Death years
+            const lifeSpan = getLifeSpan(person);
+            if (lifeSpan) {
+                cardGroup.append('text')
+                    .attr('x', config.nodeWidth / 2)
+                    .attr('y', 75)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-family', 'Inter, sans-serif')
+                    .attr('font-size', '11px')
+                    .attr('fill', '#6b7280')
+                    .text(lifeSpan);
+            }
+            
+            // Profession
+            if (person.profession) {
+                cardGroup.append('text')
+                    .attr('x', config.nodeWidth / 2)
+                    .attr('y', 90)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-family', 'Inter, sans-serif')
+                    .attr('font-size', '10px')
+                    .attr('fill', '#9ca3af')
+                    .text(truncateText(person.profession, 25));
+            }
+            
+            // Age indicator
+            if (person.age !== undefined) {
+                cardGroup.append('text')
+                    .attr('x', config.nodeWidth / 2)
+                    .attr('y', 105)
+                    .attr('text-anchor', 'middle')
+                    .attr('font-family', 'Inter, sans-serif')
+                    .attr('font-size', '9px')
+                    .attr('fill', person.is_deceased ? '#dc2626' : '#059669')
+                    .text(person.is_deceased ? 'Décédé(e)' : `${person.age} ans`);
+            }
+            
+            // Animate entrance
+            nodeGroup
+                .transition()
+                .delay(genIndex * 300 + personIndex * 100)
+                .duration(600)
+                .style('opacity', 1)
+                .attr('transform', `translate(${person.x}, ${person.y}) scale(1)`)
+                .ease(d3.easeBackOut.overshoot(1.2));
+        });
+    });
+}
+
+function createDefaultAvatar(cardGroup, colors, person) {
+    // Default avatar circle with gender icon
+    cardGroup.append('circle')
+        .attr('cx', config.nodeWidth / 2)
+        .attr('cy', 25)
+        .attr('r', 15)
+        .attr('fill', colors.stroke)
+        .attr('stroke', 'white')
+        .attr('stroke-width', 2);
+    
+    // Person icon
+    cardGroup.append('text')
+        .attr('x', config.nodeWidth / 2)
+        .attr('y', 31)
+        .attr('text-anchor', 'middle')
+        .attr('fill', 'white')
+        .attr('font-size', '12px')
+        .text(person.gender === 'F' ? '♀' : person.gender === 'M' ? '♂' : '?');
+}
+
+function getPersonColors(person) {
+    if (person.gender === 'M') {
+        return config.colors.male;
+    } else if (person.gender === 'F') {
+        return config.colors.female;
+    } else {
+        return config.colors.unknown;
+    }
+}
+
+function getLifeSpan(person) {
+    if (person.birth_year && person.death_year) {
+        return `${person.birth_year} - ${person.death_year}`;
+    } else if (person.birth_year) {
+        return `Né(e) en ${person.birth_year}`;
+    } else if (person.death_year) {
+        return `Décédé(e) en ${person.death_year}`;
+    }
+    return null;
 }
 
 function truncateText(text, maxLength) {
@@ -493,42 +689,181 @@ function truncateText(text, maxLength) {
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
 }
 
-function resetView() {
+function showPersonInfo(person) {
+    selectedPersonId = person.id;
+    
+    document.getElementById('infoPanelName').textContent = person.name || 'Nom inconnu';
+    
+    let content = '';
+    
+    // Add photo to info panel if available
+    if (person.photo_url) {
+        content += `<div class="flex justify-center mb-3">
+            <img src="${person.photo_url}" alt="${person.name}" 
+                 class="w-16 h-16 rounded-full object-cover border-2 border-gray-200" 
+                 onerror="this.style.display='none'">
+        </div>`;
+    }
+    
+    if (person.birth_year) {
+        content += `<div class="flex items-center gap-2"><i data-feather="calendar" class="w-4 h-4 text-blue-600"></i>Né(e) en ${person.birth_year}</div>`;
+    }
+    
+    if (person.death_year) {
+        content += `<div class="flex items-center gap-2"><i data-feather="calendar" class="w-4 h-4 text-red-600"></i>Décédé(e) en ${person.death_year}</div>`;
+    }
+    
+    if (person.profession) {
+        content += `<div class="flex items-center gap-2"><i data-feather="briefcase" class="w-4 h-4 text-green-600"></i>${person.profession}</div>`;
+    }
+    
+    if (person.birth_place) {
+        content += `<div class="flex items-center gap-2"><i data-feather="map-pin" class="w-4 h-4 text-purple-600"></i>${person.birth_place}</div>`;
+    }
+    
+    if (person.children && person.children.length > 0) {
+        content += `<div class="flex items-center gap-2"><i data-feather="users" class="w-4 h-4 text-amber-600"></i>${person.children.length} enfant(s)</div>`;
+    }
+    
+    document.getElementById('infoPanelContent').innerHTML = content;
+    document.getElementById('infoPanel').classList.remove('hidden');
+    
+    feather.replace();
+}
+
+function hideInfoPanel() {
+    document.getElementById('infoPanel').classList.add('hidden');
+    selectedPersonId = null;
+}
+
+function viewPersonDetails() {
+    if (selectedPersonId) {
+        window.location.href = `/person/${selectedPersonId}/`;
+    }
+}
+
+function focusOnPerson() {
+    if (selectedPersonId) {
+        const nodeElement = g.select(`[data-person-id="${selectedPersonId}"]`);
+        if (!nodeElement.empty()) {
+            const bounds = nodeElement.node().getBBox();
+            const centerX = bounds.x + bounds.width / 2;
+            const centerY = bounds.y + bounds.height / 2;
+            
+            const container = document.getElementById('treeContainer');
+            const newTransform = d3.zoomIdentity
+                .translate(container.clientWidth / 2 - centerX, container.clientHeight / 2 - centerY)
+                .scale(currentScale);
+            
+            svg.transition().duration(750).call(
+                d3.zoom().transform,
+                newTransform
+            );
+        }
+    }
+}
+
+function updateStatistics(individuals, generations) {
+    document.getElementById('total-members').textContent = Object.keys(individuals).length;
+    document.getElementById('total-generations').textContent = generations.size;
+}
+
+function handleZoom(event) {
+    currentScale = event.transform.k;
+    currentTransform = { x: event.transform.x, y: event.transform.y };
+    
+    g.attr("transform", event.transform);
+    
+    document.getElementById('zoom-level').textContent = Math.round(currentScale * 100) + '%';
+}
+
+function centerTree() {
+    const container = document.getElementById('treeContainer');
+    const bounds = g.node().getBBox();
+    
+    const centerX = container.clientWidth / 2 - bounds.width / 2 - bounds.x;
+    const centerY = container.clientHeight / 2 - bounds.height / 2 - bounds.y;
+    
+    const newTransform = d3.zoomIdentity.translate(centerX, centerY).scale(1);
+    
     svg.transition().duration(750).call(
         d3.zoom().transform,
-        d3.zoomIdentity
+        newTransform
     );
 }
 
-function expandTree() {
-    const container = document.getElementById('treeContainer');
-    if (container.style.height === '1200px') {
-        container.style.height = '800px';
-    } else {
-        container.style.height = '1200px';
-    }
-    setTimeout(() => initializeCompleteTree(), 100);
+function zoomIn() {
+    svg.transition().duration(300).call(
+        d3.zoom().scaleBy,
+        1.2
+    );
+}
+
+function zoomOut() {
+    svg.transition().duration(300).call(
+        d3.zoom().scaleBy,
+        0.8
+    );
+}
+
+function expandAll() {
+    svg.transition().duration(300).call(
+        d3.zoom().scaleTo,
+        0.7
+    );
 }
 
 function showError(message) {
-    const container = document.getElementById('treeContainer');
-    container.innerHTML = `
-        <div class="flex items-center justify-center h-full text-red-600 text-center">
-            <div>
-                <p class="text-lg font-semibold mb-2">Erreur</p>
-                <p class="mb-4">${message}</p>
-                <button onclick="location.reload()" class="px-4 py-2 bg-brand-primary text-white rounded-lg">
-                    Recharger
-                </button>
-            </div>
+    document.getElementById('treeLoading').innerHTML = `
+        <div class="text-center">
+            <i data-feather="alert-circle" class="w-16 h-16 text-red-400 mx-auto mb-4"></i>
+            <p class="text-gray-600 font-medium">${message}</p>
+            <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition">
+                Recharger
+            </button>
         </div>
     `;
+    feather.replace();
 }
 
-// Handle window resize
-window.addEventListener('resize', function() {
-    setTimeout(initializeCompleteTree, 200);
-});
+function hideLoading() {
+    document.getElementById('treeLoading').style.display = 'none';
+}
+
+function setupEventListeners() {
+    document.getElementById('rootPersonSelect').addEventListener('change', function() {
+        if (this.value) {
+            window.location.href = `/tree/${this.value}/`;
+        }
+    });
+    
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey || e.metaKey) {
+            switch(e.key) {
+                case '=':
+                case '+':
+                    e.preventDefault();
+                    zoomIn();
+                    break;
+                case '-':
+                    e.preventDefault();
+                    zoomOut();
+                    break;
+                case '0':
+                    e.preventDefault();
+                    centerTree();
+                    break;
+            }
+        }
+        
+        if (e.key === 'Escape') {
+            hideInfoPanel();
+        }
+    });
+}
 </script>
+
+<!-- D3.js Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
 
 {% endblock %}
