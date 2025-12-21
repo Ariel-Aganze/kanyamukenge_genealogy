@@ -49,7 +49,7 @@
     <div class="bg-white rounded-xl border border-brand-border shadow-sm p-4 mb-6">
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div class="flex items-center gap-4">
-                <div class="flex items-center gap-2">
+                <!-- <div class="flex items-center gap-2">
                     <label class="text-sm font-medium text-gray-700">Point de départ:</label>
                     <select id="rootPersonSelect" 
                             class="px-4 py-2 border border-brand-border rounded-lg text-sm focus:ring-2 focus:ring-brand-primary focus:border-transparent">
@@ -60,7 +60,7 @@
                         </option>
                         {% endfor %}
                     </select>
-                </div>
+                </div> -->
             </div>
             
             <div class="flex items-center gap-3">
@@ -183,6 +183,7 @@ let svg, g;
 let currentScale = 1;
 let currentTransform = { x: 0, y: 0 };
 let selectedPersonId = null;
+let zoomBehavior; // Store zoom behavior
 
 // Tree layout configuration
 const config = {
@@ -232,12 +233,12 @@ function initializeFamilyTree() {
         </filter>
     `);
     
-    // Add zoom behavior
-    const zoom = d3.zoom()
+    // Add zoom behavior - FIXED
+    zoomBehavior = d3.zoom()
         .scaleExtent([0.1, 3])
         .on("zoom", handleZoom);
     
-    svg.call(zoom);
+    svg.call(zoomBehavior);
     
     // Main group for all elements
     g = svg.append("g").attr("class", "main-group");
@@ -512,6 +513,7 @@ function drawPersonNodes(layout) {
         generation.people.forEach((person, personIndex) => {
             const nodeGroup = g.append('g')
                 .attr('class', 'tree-node')
+                .attr('data-person-id', person.id) // ADDED for focus functionality
                 .attr('transform', `translate(${person.x}, ${person.y})`)
                 .style('opacity', 0)
                 .on('click', () => showPersonInfo(person));
@@ -533,8 +535,13 @@ function drawPersonNodes(layout) {
                 .attr('stroke-width', 2)
                 .attr('filter', 'url(#cardShadow)');
             
-            // Profile picture or avatar
-            if (person.photo_url) {
+            // FIXED: Profile picture handling
+            // Check if person has photo_url property (from Django's photo.url)
+            const photoUrl = person.photo_url || (person.photo ? person.photo : null);
+            
+            if (photoUrl) {
+                console.log(`Drawing photo for ${person.name}: ${photoUrl}`);
+                
                 // Add clip path for circular image
                 const clipId = `clip-${person.id}`;
                 svg.select('defs').append('clipPath')
@@ -544,27 +551,29 @@ function drawPersonNodes(layout) {
                     .attr('cy', 25)
                     .attr('r', 15);
                 
-                // Profile photo
+                // Profile photo - FIXED URL handling
                 const photoImage = cardGroup.append('image')
                     .attr('x', config.nodeWidth / 2 - 15)
                     .attr('y', 10)
                     .attr('width', 30)
                     .attr('height', 30)
-                    .attr('href', person.photo_url)
+                    .attr('href', photoUrl)
                     .attr('clip-path', `url(#${clipId})`)
                     .attr('preserveAspectRatio', 'xMidYMid slice')
                     .style('opacity', 0);
                 
-                // Photo loading animation
+                // Photo loading animation - FIXED
                 photoImage.on('load', function() {
+                    console.log(`Photo loaded for ${person.name}`);
                     d3.select(this)
                         .transition()
                         .duration(300)
                         .style('opacity', 1);
                 });
                 
-                // Fallback to default avatar if photo fails to load
+                // Fallback to default avatar if photo fails to load - FIXED
                 photoImage.on('error', function() {
+                    console.log(`Photo failed to load for ${person.name}, using default avatar`);
                     d3.select(this).remove();
                     // Create default avatar
                     createDefaultAvatar(cardGroup, colors, person);
@@ -696,10 +705,11 @@ function showPersonInfo(person) {
     
     let content = '';
     
-    // Add photo to info panel if available
-    if (person.photo_url) {
+    // Add photo to info panel if available - FIXED
+    const photoUrl = person.photo_url || (person.photo ? person.photo : null);
+    if (photoUrl) {
         content += `<div class="flex justify-center mb-3">
-            <img src="${person.photo_url}" alt="${person.name}" 
+            <img src="${photoUrl}" alt="${person.name}" 
                  class="w-16 h-16 rounded-full object-cover border-2 border-gray-200" 
                  onerror="this.style.display='none'">
         </div>`;
@@ -756,7 +766,7 @@ function focusOnPerson() {
                 .scale(currentScale);
             
             svg.transition().duration(750).call(
-                d3.zoom().transform,
+                zoomBehavior.transform, // Use stored zoom behavior
                 newTransform
             );
         }
@@ -777,7 +787,10 @@ function handleZoom(event) {
     document.getElementById('zoom-level').textContent = Math.round(currentScale * 100) + '%';
 }
 
+// FIXED: Button functions
 function centerTree() {
+    if (!g || !g.node()) return;
+    
     const container = document.getElementById('treeContainer');
     const bounds = g.node().getBBox();
     
@@ -787,28 +800,34 @@ function centerTree() {
     const newTransform = d3.zoomIdentity.translate(centerX, centerY).scale(1);
     
     svg.transition().duration(750).call(
-        d3.zoom().transform,
+        zoomBehavior.transform,
         newTransform
     );
 }
 
 function zoomIn() {
+    if (!svg || !zoomBehavior) return;
+    
     svg.transition().duration(300).call(
-        d3.zoom().scaleBy,
+        zoomBehavior.scaleBy,
         1.2
     );
 }
 
 function zoomOut() {
+    if (!svg || !zoomBehavior) return;
+    
     svg.transition().duration(300).call(
-        d3.zoom().scaleBy,
+        zoomBehavior.scaleBy,
         0.8
     );
 }
 
 function expandAll() {
+    if (!svg || !zoomBehavior) return;
+    
     svg.transition().duration(300).call(
-        d3.zoom().scaleTo,
+        zoomBehavior.scaleTo,
         0.7
     );
 }

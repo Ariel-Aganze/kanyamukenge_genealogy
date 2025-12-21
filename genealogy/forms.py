@@ -5,7 +5,7 @@ from .models import Person, Partnership, ParentChild, ModificationProposal, Fami
 
 
 class PersonForm(forms.ModelForm):
-    """Form for creating and editing people"""
+    """Form for creating and editing people - FIXED DATE HANDLING"""
     
     class Meta:
         model = Person
@@ -30,18 +30,28 @@ class PersonForm(forms.ModelForm):
             'gender': forms.Select(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent'
             }),
-            'birth_date': forms.DateInput(attrs={
-                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
-                'type': 'date'
-            }),
+            # FIXED: Proper date input configuration
+            'birth_date': forms.DateInput(
+                attrs={
+                    'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
+                    'type': 'date',
+                    'placeholder': 'YYYY-MM-DD'
+                },
+                format='%Y-%m-%d'  # IMPORTANT: This ensures proper date formatting
+            ),
             'birth_place': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
                 'placeholder': 'Lieu de naissance'
             }),
-            'death_date': forms.DateInput(attrs={
-                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
-                'type': 'date'
-            }),
+            # FIXED: Proper date input configuration
+            'death_date': forms.DateInput(
+                attrs={
+                    'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
+                    'type': 'date',
+                    'placeholder': 'YYYY-MM-DD'
+                },
+                format='%Y-%m-%d'  # IMPORTANT: This ensures proper date formatting
+            ),
             'death_place': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
                 'placeholder': 'Lieu de décès'
@@ -61,12 +71,72 @@ class PersonForm(forms.ModelForm):
                 'placeholder': 'Biographie, histoire de vie, anecdotes...'
             }),
             'photo': forms.FileInput(attrs={
-                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent'
+                'class': 'hidden',  # Hidden since we use drag & drop
+                'accept': 'image/*'
             }),
             'visibility': forms.Select(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent'
             })
         }
+
+    # IMPORTANT: Override __init__ to handle date formatting properly
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        # Set input formats for date fields to handle both input and display
+        self.fields['birth_date'].input_formats = ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']
+        self.fields['death_date'].input_formats = ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']
+        
+        # If we have an instance (editing), ensure dates are properly formatted
+        if self.instance and self.instance.pk:
+            if self.instance.birth_date:
+                self.fields['birth_date'].widget.attrs['value'] = self.instance.birth_date.strftime('%Y-%m-%d')
+            if self.instance.death_date:
+                self.fields['death_date'].widget.attrs['value'] = self.instance.death_date.strftime('%Y-%m-%d')
+    
+    def clean(self):
+        cleaned_data = super().clean()
+        birth_date = cleaned_data.get('birth_date')
+        death_date = cleaned_data.get('death_date')
+        
+        # Validate dates
+        if birth_date and death_date:
+            if death_date <= birth_date:
+                raise ValidationError({
+                    'death_date': 'La date de décès doit être postérieure à la date de naissance.'
+                })
+        
+        # Validate birth date is not in the future
+        if birth_date:
+            from datetime import date
+            if birth_date > date.today():
+                raise ValidationError({
+                    'birth_date': 'La date de naissance ne peut pas être dans le futur.'
+                })
+        
+        # Validate death date is not in the future
+        if death_date:
+            from datetime import date
+            if death_date > date.today():
+                raise ValidationError({
+                    'death_date': 'La date de décès ne peut pas être dans le futur.'
+                })
+        
+        return cleaned_data
+
+    def save(self, commit=True):
+        instance = super().save(commit=False)
+        
+        # Auto-set is_deceased based on death_date
+        if instance.death_date:
+            instance.is_deceased = True
+        else:
+            instance.is_deceased = False
+        
+        if commit:
+            instance.save()
+        
+        return instance
 
 
 class PartnershipForm(forms.ModelForm):

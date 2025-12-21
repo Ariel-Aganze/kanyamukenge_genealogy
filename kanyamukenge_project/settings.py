@@ -370,7 +370,7 @@ PROJECT_NAME = "Famille KANYAMUKENGE"
 CONTACT_EMAIL = config('CONTACT_EMAIL', default='admin@kanyamukenge.family')
 
 # URL de base pour les liens dans les emails
-BASE_URL = config('BASE_URL', default='http://localhost:8000')
+BASE_URL = config('BASE_URL', default='http://127.0.0.1:8000')
 
 # Durée de validité des invitations (en jours)
 INVITATION_EXPIRE_DAYS = 7

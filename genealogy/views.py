@@ -12,8 +12,23 @@ from django.views.decorators.http import require_POST
 from django.conf import settings
 import json
 from django.core.exceptions import ValidationError
-from datetime import datetime
+from datetime import datetime 
+from django.db import transaction
 
+import logging
+from django.core.mail import send_mail
+from django.conf import settings
+
+from .email_utils import (
+    notify_person_created,
+    notify_person_edited, 
+    notify_person_deleted,
+    notify_child_added,
+    notify_modification_proposed,
+    notify_user_created,
+    notify_user_deleted,
+    notify_user_deactivated
+)
 
 from .models import (
     Person, Partnership, ParentChild, ModificationProposal,
@@ -24,6 +39,9 @@ from .forms import (
     ModificationProposalForm, FamilyEventForm, DocumentForm, SearchForm
 )
 from .utils import create_audit_log, generate_gedcom_export
+
+import logging
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -57,7 +75,7 @@ def home(request):
 
 @login_required
 def dashboard(request):
-    """Main dashboard for authenticated users"""
+    """Main dashboard for authenticated users - FIXED GENERATIONS CALCULATION"""
     user = request.user
     
     # Recent activities
@@ -80,15 +98,124 @@ def dashboard(request):
     # Recent family events
     recent_events = FamilyEvent.objects.all().order_by('-date', '-created_at')[:5]
     
+    # FIXED: Proper generations calculation
+    def calculate_generations():
+        """Calculate the actual number of generations in the family tree"""
+        try:
+            # Find all root people (those without parents in our database)
+            all_people = Person.objects.all()
+            
+            if not all_people.exists():
+                return {
+                    'total_generations': 0,
+                    'oldest_birth': None,
+                    'newest_birth': None
+                }
+            
+            # Find oldest and newest birth dates
+            date_stats = Person.objects.filter(
+                birth_date__isnull=False
+            ).aggregate(
+                oldest_birth=models.Min('birth_date'),
+                newest_birth=models.Max('birth_date')
+            )
+            
+            # Calculate generations using family tree structure
+            generations_found = set()
+            processed = set()
+            
+            # Find root people (those without parents in our system)
+            root_people = []
+            for person in all_people:
+                try:
+                    parents = person.get_parents() if hasattr(person, 'get_parents') else []
+                    if not parents:
+                        root_people.append(person)
+                except:
+                    root_people.append(person)
+            
+            if not root_people:
+                # If no clear roots found, use oldest person
+                oldest_person = all_people.filter(
+                    birth_date__isnull=False
+                ).order_by('birth_date').first()
+                if oldest_person:
+                    root_people = [oldest_person]
+            
+            # BFS to find all generations
+            current_generation = 0
+            queue = [(person, 0) for person in root_people]
+            
+            while queue:
+                person, generation = queue.pop(0)
+                
+                if person.id in processed:
+                    continue
+                    
+                processed.add(person.id)
+                generations_found.add(generation)
+                
+                # Add children to next generation
+                try:
+                    children = person.get_children() if hasattr(person, 'get_children') else []
+                    for child in children:
+                        if child and child.id not in processed:
+                            queue.append((child, generation + 1))
+                except:
+                    pass
+            
+            total_generations = len(generations_found) if generations_found else 1
+            
+            return {
+                'total_generations': total_generations,
+                'oldest_birth': date_stats['oldest_birth'],
+                'newest_birth': date_stats['newest_birth']
+            }
+            
+        except Exception as e:
+            print(f"Error calculating generations: {e}")
+            # Fallback calculation based on birth years
+            try:
+                oldest = Person.objects.filter(birth_date__isnull=False).order_by('birth_date').first()
+                newest = Person.objects.filter(birth_date__isnull=False).order_by('-birth_date').first()
+                
+                if oldest and newest:
+                    year_span = newest.birth_date.year - oldest.birth_date.year
+                    estimated_generations = max(1, (year_span // 25) + 1)  # Rough estimate: 25 years per generation
+                    
+                    return {
+                        'total_generations': estimated_generations,
+                        'oldest_birth': oldest.birth_date,
+                        'newest_birth': newest.birth_date
+                    }
+                else:
+                    return {
+                        'total_generations': 1,
+                        'oldest_birth': None,
+                        'newest_birth': None
+                    }
+            except:
+                return {
+                    'total_generations': 1,
+                    'oldest_birth': None,
+                    'newest_birth': None
+                }
+    
+    # Calculate generations data
+    generations_data = calculate_generations()
+    
     context = {
         'recent_people': recent_people,
         'pending_proposals': pending_proposals,
         'user_people_count': user_people_count,
         'recent_events': recent_events,
         'total_people': Person.objects.count(),
-        'total_generations': Person.objects.aggregate(
-            count=Count('birth_date__year', distinct=True)
-        )['count'] or 0,
+        # FIXED: Proper generations data
+        'total_generations': generations_data['total_generations'],
+        'generations': {
+            'oldest_birth': generations_data['oldest_birth'],
+            'newest_birth': generations_data['newest_birth']
+        },
     }
     
     return render(request, 'genealogy/dashboard.html', context)
@@ -170,7 +297,7 @@ def person_detail(request, person_id):
 
 @login_required
 def person_create(request):
-    """Create a new person"""
+    """Create a new person - WITH EMAIL NOTIFICATION"""
     if request.method == 'POST':
         form = PersonForm(request.POST, request.FILES)
         if form.is_valid():
@@ -188,6 +315,13 @@ def person_create(request):
                 request=request
             )
             
+            # Send email notification to admins
+            try:
+                notify_person_created(person, request.user)
+                logger.info(f"Email notification sent for person creation: {person.get_full_name()}")
+            except Exception as e:
+                logger.error(f"Failed to send email notification for person creation: {str(e)}")
+            
             messages.success(request, f'{person.get_full_name()} ajouté(e) avec succès.')
             return redirect('genealogy:person_detail', person_id=person.id)
     else:
@@ -201,7 +335,7 @@ def person_create(request):
 
 @login_required
 def person_edit(request, person_id):
-    """Edit a person's information"""
+    """Edit a person's information - WITH EMAIL NOTIFICATION"""
     person = get_object_or_404(Person, id=person_id)
     
     if not person.can_be_modified_by(request.user):
@@ -211,10 +345,12 @@ def person_edit(request, person_id):
     if request.method == 'POST':
         form = PersonForm(request.POST, request.FILES, instance=person)
         if form.is_valid():
-            # Store old values for audit
+            # Store old values for audit and notification
             old_values = {}
+            changed_fields = []
             for field in form.changed_data:
                 old_values[field] = getattr(person, field)
+                changed_fields.append(field)
             
             form.save()
             
@@ -226,6 +362,14 @@ def person_edit(request, person_id):
                 changes={'old': old_values, 'new': form.cleaned_data},
                 request=request
             )
+            
+            # Send email notification to admins if there were changes
+            if changed_fields:
+                try:
+                    notify_person_edited(person, request.user, changed_fields)
+                    logger.info(f"Email notification sent for person edit: {person.get_full_name()}")
+                except Exception as e:
+                    logger.error(f"Failed to send email notification for person edit: {str(e)}")
             
             messages.success(request, f'Informations de {person.get_full_name()} mises à jour.')
             return redirect('genealogy:person_detail', person_id=person.id)
@@ -241,10 +385,10 @@ def person_edit(request, person_id):
 @login_required
 @require_POST
 def person_delete(request, person_id):
-    """Supprimer une personne (admin seulement ou propriétaire)"""
+    """Delete a person - WITH EMAIL NOTIFICATION"""
     person = get_object_or_404(Person, id=person_id)
     
-    # Vérifier les permissions
+    # Check permissions
     can_delete = False
     if request.user.role == 'admin':
         can_delete = True
@@ -255,11 +399,18 @@ def person_delete(request, person_id):
         messages.error(request, "Vous n'avez pas l'autorisation de supprimer cette personne.")
         return redirect('genealogy:person_detail', person_id=person.id)
     
-    # Sauvegarder le nom pour le message
+    # Store person info for notification before deletion
     person_name = person.get_full_name()
     
-    # Supprimer la personne
+    # Delete the person
     person.delete()
+    
+    # Send email notification to admins
+    try:
+        notify_person_deleted(person_name, request.user)
+        logger.info(f"Email notification sent for person deletion: {person_name}")
+    except Exception as e:
+        logger.error(f"Failed to send email notification for person deletion: {str(e)}")
     
     messages.success(request, f"{person_name} a été supprimé(e) avec succès.")
     return redirect('genealogy:dashboard')
@@ -305,7 +456,7 @@ def add_partnership(request, person_id):
 
 @login_required
 def add_child(request, person_id):
-    """Add a child for a person"""
+    """Add a child for a person - WITH EMAIL NOTIFICATION"""
     parent = get_object_or_404(Person, id=person_id)
 
     if not parent.can_be_modified_by(request.user):
@@ -331,35 +482,33 @@ def add_child(request, person_id):
                     messages.error(request, f'{child.get_full_name()} est déjà enregistré(e) comme enfant de {parent.get_full_name()}.')
                     return redirect('genealogy:person_detail', person_id=parent.id)
                 
-                # Create the parent-child relationship directly
-                parent_child = ParentChild(
-                    parent=parent,
-                    child=child,
-                    relationship_type=relationship_type,
-                    notes=notes,
-                    created_by=request.user,
-                    status='confirmed'
-                )
+                # Create the parent-child relationship
+                with transaction.atomic():
+                    relationship = ParentChild.objects.create(
+                        parent=parent,
+                        child=child,
+                        relationship_type=relationship_type,
+                        notes=notes,
+                        created_by=request.user
+                    )
                 
-                # Validate the relationship
-                parent_child.full_clean()
-                parent_child.save()
-
-                create_audit_log(
-                    user=request.user,
-                    action='create',
-                    model_name='ParentChild',
-                    object_id=parent_child.id,
-                    changes={
-                        'parent': parent.id,
-                        'child': child.id,
-                        'relationship_type': relationship_type,
-                        'notes': notes
-                    },
-                    request=request
-                )
-
-                messages.success(request, f'{child.get_full_name()} a été ajouté(e) comme enfant de {parent.get_full_name()}.')
+                    create_audit_log(
+                        user=request.user,
+                        action='create',
+                        model_name='ParentChild',
+                        object_id=relationship.id,
+                        changes=form.cleaned_data,
+                        request=request
+                    )
+                
+                # Send email notification to admins
+                try:
+                    notify_child_added(parent, child, request.user)
+                    logger.info(f"Email notification sent for child addition: {parent.get_full_name()} -> {child.get_full_name()}")
+                except Exception as e:
+                    logger.error(f"Failed to send email notification for child addition: {str(e)}")
+                
+                messages.success(request, f'{child.get_full_name()} ajouté(e) comme enfant de {parent.get_full_name()}.')
                 return redirect('genealogy:person_detail', person_id=parent.id)
 
             except ValidationError as e:
@@ -385,7 +534,7 @@ def add_child(request, person_id):
 
 @login_required
 def propose_modification(request, person_id):
-    """Propose a modification for a person's data"""
+    """Propose a modification for a person's data - WITH EMAIL NOTIFICATION"""
     person = get_object_or_404(Person, id=person_id)
     
     if request.method == 'POST':
@@ -409,6 +558,19 @@ def propose_modification(request, person_id):
                 changes=form.cleaned_data,
                 request=request
             )
+            
+            # Send email notification to admins
+            try:
+                notify_modification_proposed(
+                    person, 
+                    request.user, 
+                    proposal.field_name, 
+                    proposal.old_value, 
+                    proposal.new_value
+                )
+                logger.info(f"Email notification sent for modification proposal: {person.get_full_name()}")
+            except Exception as e:
+                logger.error(f"Failed to send email notification for modification proposal: {str(e)}")
             
             messages.success(request, 'Proposition de modification envoyée.')
             return redirect('genealogy:person_detail', person_id=person.id)
@@ -658,7 +820,7 @@ def manage_users(request):
 
 @login_required
 def toggle_user(request, user_id):
-    """Toggle user active status"""
+    """Toggle user active status - WITH EMAIL NOTIFICATION FOR DEACTIVATION"""
     if request.user.role != 'admin':
         return JsonResponse({'error': 'Permission denied'}, status=403)
     
@@ -666,22 +828,23 @@ def toggle_user(request, user_id):
         return JsonResponse({'error': 'Method not allowed'}, status=405)
     
     user = get_object_or_404(User, id=user_id)
-    activate = request.POST.get('activate', 'false').lower() == 'true'
     
     # Prevent admin from deactivating themselves
-    if user == request.user and not activate:
-        return JsonResponse({'error': 'Vous ne pouvez pas vous désactiver vous-même'}, status=400)
+    if user == request.user:
+        return JsonResponse({'error': 'Vous ne pouvez pas désactiver votre propre compte'}, status=400)
     
     try:
+        # Toggle active status
+        activate = not user.is_active
         user.is_active = activate
         user.save()
         
+        action = 'activate' if activate else 'deactivate'
+        
         # Create audit log
-        from .utils import create_audit_log
-        action = 'Activation' if activate else 'Désactivation'
         create_audit_log(
             user=request.user,
-            action='update',
+            action=action,
             model_name='User',
             object_id=user.id,
             changes={
@@ -692,6 +855,14 @@ def toggle_user(request, user_id):
             request=request
         )
         
+        # Send email notification only for deactivation
+        if not activate:
+            try:
+                notify_user_deactivated(user, request.user)
+                logger.info(f"Email notification sent for user deactivation: {user.email}")
+            except Exception as e:
+                logger.error(f"Failed to send email notification for user deactivation: {str(e)}")
+        
         message = f'Utilisateur {"activé" if activate else "désactivé"} avec succès'
         return JsonResponse({'success': True, 'message': message})
         
@@ -700,7 +871,7 @@ def toggle_user(request, user_id):
 
 @login_required
 def delete_user(request, user_id):
-    """Delete user account"""
+    """Delete user account - WITH EMAIL NOTIFICATION"""
     if request.user.role != 'admin':
         return JsonResponse({'error': 'Permission denied'}, status=403)
     
@@ -714,10 +885,11 @@ def delete_user(request, user_id):
         return JsonResponse({'error': 'Vous ne pouvez pas supprimer votre propre compte'}, status=400)
     
     try:
+        # Store user info for notifications before deletion
         user_name = user.get_full_name()
+        user_email = user.email
         
         # Create audit log before deletion
-        from .utils import create_audit_log
         create_audit_log(
             user=request.user,
             action='delete',
@@ -725,13 +897,21 @@ def delete_user(request, user_id):
             object_id=user.id,
             changes={
                 'deleted_user': user_name,
-                'email': user.email,
+                'email': user_email,
                 'role': user.role
             },
             request=request
         )
         
+        # Delete the user
         user.delete()
+        
+        # Send email notification
+        try:
+            notify_user_deleted(user_name, user_email, request.user)
+            logger.info(f"Email notification sent for user deletion: {user_email}")
+        except Exception as e:
+            logger.error(f"Failed to send email notification for user deletion: {str(e)}")
         
         return JsonResponse({
             'success': True, 
@@ -957,10 +1137,10 @@ def can_view_person(user, person):
 
 
 def get_family_tree_data(center_person, user):
-    """Generate family tree data for D3.js visualization"""
+    """Generate family tree data for D3.js visualization - FIXED PHOTO URLs"""
     
     def safe_get_person_data(person):
-        """Safely get person data with null checks"""
+        """Safely get person data with null checks - FIXED PHOTO URL"""
         if not person:
             return None
             
@@ -973,6 +1153,15 @@ def get_family_tree_data(center_person, user):
                 if today < person.birth_date.replace(year=today.year):
                     age -= 1
             
+            # FIXED: Proper photo URL handling
+            photo_url = None
+            if person.photo:
+                try:
+                    photo_url = person.photo.url
+                except (AttributeError, ValueError):
+                    # Handle cases where photo file is missing or invalid
+                    photo_url = None
+            
             return {
                 'id': person.id,
                 'name': person.get_full_name() or f"Person {person.id}",
@@ -983,6 +1172,7 @@ def get_family_tree_data(center_person, user):
                 'is_deceased': getattr(person, 'is_deceased', False),
                 'profession': getattr(person, 'profession', '') or '',
                 'birth_place': getattr(person, 'birth_place', '') or '',
+                'photo_url': photo_url,  # ADDED: Photo URL for tree display
                 'private': False
             }
         except Exception as e:
@@ -1059,3 +1249,145 @@ def page_not_found_view(request, exception=None):
 def server_error_view(request):
     """Custom 500 error page"""
     return render(request, 'errors/500.html', status=500)
+
+def public_tree_view(request, person_id=None):
+    """Public family tree view - limited information"""
+    
+    # Get only public people
+    public_people = Person.objects.filter(visibility='public').order_by('last_name', 'first_name')
+    
+    if not public_people.exists():
+        messages.info(request, "Aucun membre public n'est disponible dans l'arbre généalogique.")
+        return redirect('genealogy:home')
+    
+    if person_id:
+        center_person = get_object_or_404(Person, id=person_id, visibility='public')
+    else:
+        # Default to oldest public person
+        center_person = public_people.filter(birth_date__isnull=False).order_by('birth_date').first()
+        if not center_person:
+            center_person = public_people.first()
+    
+    # Get public family tree data
+    tree_data = get_public_family_tree_data(center_person)
+    
+    context = {
+        'center_person': center_person,
+        'tree_data': json.dumps(tree_data),
+        'public_people': public_people,
+    }
+    
+    return render(request, 'genealogy/public_tree.html', context)
+
+
+def get_public_family_tree_data(center_person):
+    """Generate public family tree data - limited information only"""
+    
+    def safe_get_public_person_data(person):
+        """Get limited person data for public view"""
+        if not person or person.visibility != 'public':
+            return None
+            
+        try:
+            return {
+                'id': person.id,
+                'name': person.get_full_name() or f"Membre famille",
+                'gender': getattr(person, 'gender', 'U') or 'U',
+                'birth_year': person.birth_date.year if person.birth_date else None,
+                'death_year': person.death_date.year if person.death_date else None,
+                'is_deceased': getattr(person, 'is_deceased', False),
+                # NO: profession, biography, photo_url, birth_place, etc.
+                'private': False
+            }
+        except Exception as e:
+            print(f"Error getting public person data for {person}: {e}")
+            return None
+    
+    def build_public_family_tree():
+        """Build family tree structure with only public people"""
+        try:
+            # Find all PUBLIC people only
+            all_people = Person.objects.filter(visibility='public')
+            
+            individuals = {}
+            
+            # Process all public people
+            for person in all_people:
+                person_data = safe_get_public_person_data(person)
+                if person_data:
+                    individuals[person.id] = person_data
+                    
+                    # Get family relationships (only to other public people)
+                    try:
+                        # Get parents, partners, children - but only if they're also public
+                        parents = []
+                        partners = []
+                        children = []
+                        
+                        if hasattr(person, 'get_parents'):
+                            parents = [p for p in person.get_parents() if p and p.visibility == 'public']
+                        
+                        if hasattr(person, 'get_partners'):
+                            partners = [p for p in person.get_partners() if p and p.visibility == 'public']
+                        
+                        if hasattr(person, 'get_children'):
+                            children = [c for c in person.get_children() if c and c.visibility == 'public']
+                        
+                        # Store relationships
+                        person_data['parents'] = [p.id for p in parents if p]
+                        person_data['partners'] = [p.id for p in partners if p] 
+                        person_data['children'] = [c.id for c in children if c]
+                        
+                    except Exception as e:
+                        print(f"Error getting public relationships for {person}: {e}")
+                        person_data['parents'] = []
+                        person_data['partners'] = []
+                        person_data['children'] = []
+            
+            return individuals
+        except Exception as e:
+            print(f"Error building public family tree: {e}")
+            return {}
+    
+    # Build the public tree structure
+    try:
+        public_tree = build_public_family_tree()
+        
+        return {
+            'individuals': public_tree,
+            'root_person_id': center_person.id if center_person else None
+        }
+    except Exception as e:
+        print(f"Error in get_public_family_tree_data: {e}")
+        return {
+            'individuals': {},
+            'root_person_id': None
+        }
+
+# Also update the existing home view to include public people for statistics
+def home(request):
+    """Public home page showing family tree overview - UPDATED"""
+
+    # Redirect logged-in users to dashboard
+    if request.user.is_authenticated:
+        return redirect('/dashboard/')
+
+    # Public family members
+    public_people = Person.objects.filter(
+        visibility='public'
+    ).order_by('last_name')
+
+    # Statistics
+    total_people = Person.objects.count()
+    generations = Person.objects.aggregate(
+        oldest_birth=models.Min('birth_date'),
+        newest_birth=models.Max('birth_date')
+    )
+
+    context = {
+        'public_people': public_people[:10],  # Show first 10
+        'total_people': total_people,
+        'generations': generations,
+    }
+
+    return render(request, 'genealogy/home.html', context)

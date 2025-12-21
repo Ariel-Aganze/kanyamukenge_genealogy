@@ -166,12 +166,17 @@
                 </h3>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <!-- Date de naissance -->
+                    <!-- Date de naissance - FIXED -->
                     <div>
                         <label for="{{ form.birth_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
                             Date de naissance
                         </label>
-                        {{ form.birth_date }}
+                        <!-- FIXED: Create input manually to ensure proper date value -->
+                        <input type="date" 
+                               name="{{ form.birth_date.name }}" 
+                               id="{{ form.birth_date.id_for_label }}"
+                               value="{% if person and person.birth_date %}{{ person.birth_date|date:'Y-m-d' }}{% endif %}"
+                               class="w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent">
                         {% if form.birth_date.errors %}
                             <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
                                 <i data-feather="alert-circle" class="w-4 h-4"></i>
@@ -194,13 +199,18 @@
                         {% endif %}
                     </div>
 
-                    <!-- Date de décès -->
+                    <!-- Date de décès - FIXED -->
                     <div>
                         <label for="{{ form.death_date.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
                             Date de décès
                             <span class="text-xs text-gray-500">(si applicable)</span>
                         </label>
-                        {{ form.death_date }}
+                        <!-- FIXED: Create input manually to ensure proper date value -->
+                        <input type="date" 
+                               name="{{ form.death_date.name }}" 
+                               id="{{ form.death_date.id_for_label }}"
+                               value="{% if person and person.death_date %}{{ person.death_date|date:'Y-m-d' }}{% endif %}"
+                               class="w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent">
                         {% if form.death_date.errors %}
                             <div class="mt-1 text-sm text-red-600 flex items-center gap-1">
                                 <i data-feather="alert-circle" class="w-4 h-4"></i>
@@ -402,60 +412,66 @@
 {% endif %}
 
 <script>
+// FIXED: Get the correct input IDs for date fields
+const birthDateInput = document.getElementById('{{ form.birth_date.id_for_label }}');
+const deathDateInput = document.getElementById('{{ form.death_date.id_for_label }}');
+
 // Prévisualisation de la photo
-document.getElementById('{{ form.photo.id_for_label }}').addEventListener('change', function(e) {
-    const file = e.target.files[0];
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const preview = document.getElementById('newPhotoPreview');
-            const img = document.getElementById('previewImage');
-            img.src = e.target.result;
-            preview.classList.remove('hidden');
-        };
-        reader.readAsDataURL(file);
-    }
-});
+const photoInput = document.getElementById('{{ form.photo.id_for_label }}');
+if (photoInput) {
+    photoInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const preview = document.getElementById('newPhotoPreview');
+                const img = document.getElementById('previewImage');
+                img.src = e.target.result;
+                preview.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
 
 // Drag & drop pour la photo
 const dropZone = document.getElementById('photoDropZone');
 const fileInput = document.getElementById('{{ form.photo.id_for_label }}');
 
-dropZone.addEventListener('dragover', function(e) {
-    e.preventDefault();
-    dropZone.classList.add('border-brand-primary', 'bg-brand-primary/5');
-});
+if (dropZone && fileInput) {
+    dropZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dropZone.classList.add('border-brand-primary', 'bg-brand-primary/5');
+    });
 
-dropZone.addEventListener('dragleave', function(e) {
-    e.preventDefault();
-    dropZone.classList.remove('border-brand-primary', 'bg-brand-primary/5');
-});
+    dropZone.addEventListener('dragleave', function(e) {
+        e.preventDefault();
+        dropZone.classList.remove('border-brand-primary', 'bg-brand-primary/5');
+    });
 
-dropZone.addEventListener('drop', function(e) {
-    e.preventDefault();
-    dropZone.classList.remove('border-brand-primary', 'bg-brand-primary/5');
-    
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-        fileInput.files = files;
-        fileInput.dispatchEvent(new Event('change'));
-    }
-});
+    dropZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dropZone.classList.remove('border-brand-primary', 'bg-brand-primary/5');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            fileInput.files = files;
+            fileInput.dispatchEvent(new Event('change'));
+        }
+    });
+}
 
-// Validation en temps réel des dates
-const birthDate = document.getElementById('{{ form.birth_date.id_for_label }}');
-const deathDate = document.getElementById('{{ form.death_date.id_for_label }}');
-
+// FIXED: Date validation
 function validateDates() {
-    if (birthDate.value && deathDate.value) {
-        const birth = new Date(birthDate.value);
-        const death = new Date(deathDate.value);
+    if (birthDateInput && deathDateInput && birthDateInput.value && deathDateInput.value) {
+        const birth = new Date(birthDateInput.value);
+        const death = new Date(deathDateInput.value);
         
         if (birth >= death) {
-            deathDate.style.borderColor = '#ef4444';
+            deathDateInput.style.borderColor = '#ef4444';
             showDateError('La date de décès doit être postérieure à la date de naissance.');
         } else {
-            deathDate.style.borderColor = '#d1d5db';
+            deathDateInput.style.borderColor = '';
             hideDateError();
         }
     }
@@ -467,8 +483,8 @@ function showDateError(message) {
         errorDiv = document.createElement('div');
         errorDiv.id = 'dateError';
         errorDiv.className = 'mt-1 text-sm text-red-600 flex items-center gap-1';
-        errorDiv.innerHTML = `<i data-feather="alert-circle" class="w-4 h-4"></i>${message}`;
-        deathDate.parentNode.appendChild(errorDiv);
+        errorDiv.innerHTML = `<i data-feather="alert-circle" class="w-4 h-4"></i><span>${message}</span>`;
+        deathDateInput.parentNode.appendChild(errorDiv);
         feather.replace();
     }
 }
@@ -480,9 +496,10 @@ function hideDateError() {
     }
 }
 
-if (birthDate && deathDate) {
-    birthDate.addEventListener('change', validateDates);
-    deathDate.addEventListener('change', validateDates);
+// Add event listeners if date inputs exist
+if (birthDateInput && deathDateInput) {
+    birthDateInput.addEventListener('change', validateDates);
+    deathDateInput.addEventListener('change', validateDates);
 }
 
 // Form submission loading state
@@ -531,6 +548,15 @@ document.getElementById('deleteModal').addEventListener('click', function(e) {
     }
 });
 {% endif %}
+
+// FIXED: Debug date values on page load
+console.log('Date field values on load:');
+if (birthDateInput) {
+    console.log('Birth date:', birthDateInput.value);
+}
+if (deathDateInput) {
+    console.log('Death date:', deathDateInput.value);
+}
 </script>
 
 {% endblock %}

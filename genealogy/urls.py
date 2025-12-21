@@ -29,6 +29,10 @@ urlpatterns = [
     path('manage-users/<int:user_id>/toggle/', views.toggle_user, name='toggle_user'),
     path('manage-users/<int:user_id>/delete/', views.delete_user, name='delete_user'),
     path('audit-log/', views.audit_log, name='audit_log'),
+
+    # PUBLIC TREE VIEWS (add these)
+    path('public-tree/', views.public_tree_view, name='public_tree'),
+    path('public-tree/<int:person_id>/', views.public_tree_view, name='public_tree_person'),
     
     # Export
     path('export/gedcom/', views.export_gedcom, name='export_gedcom'),

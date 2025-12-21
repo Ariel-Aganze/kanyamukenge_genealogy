@@ -21,7 +21,7 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <!-- Stat Card 1 -->
+        <!-- Stat Card 1: Total Members -->
         <div class="bg-white p-6 rounded-xl border border-brand-border shadow-sm flex items-start gap-4 hover:shadow-md transition duration-300">
             <div class="p-3 bg-green-50 rounded-full text-brand-primary">
                 <i data-feather="users" class="w-6 h-6"></i>
@@ -36,15 +36,32 @@
             </div>
         </div>
         
-        <!-- Stat Card 2 -->
+        <!-- Stat Card 2: Generations - FIXED -->
         <div class="bg-white p-6 rounded-xl border border-brand-border shadow-sm flex items-start gap-4 hover:shadow-md transition duration-300">
             <div class="p-3 bg-amber-50 rounded-full text-brand-accent">
                 <i data-feather="git-merge" class="w-6 h-6"></i>
             </div>
             <div>
                 <p class="text-sm text-gray-500 font-medium">Générations</p>
-                <!-- <p class="text-3xl font-serif font-bold text-gray-800 mt-1">{{ total_generations|default:"5" }}</p> -->
-                <p class="text-xs text-gray-400 mt-1">La plus ancienne : 1920</p>
+                <!-- FIXED: Display actual calculated generations -->
+                <p class="text-3xl font-serif font-bold text-gray-800 mt-1">{{ total_generations|default:"1" }}</p>
+                <!-- FIXED: Show oldest birth year if available -->
+                {% if generations.oldest_birth %}
+                    <p class="text-xs text-gray-400 mt-1">
+                        <i data-feather="calendar" class="w-3 h-3 inline"></i>
+                        La plus ancienne : {{ generations.oldest_birth.year }}
+                    </p>
+                {% elif total_people > 0 %}
+                    <p class="text-xs text-gray-400 mt-1">
+                        <i data-feather="info" class="w-3 h-3 inline"></i>
+                        Ajoutez des dates de naissance
+                    </p>
+                {% else %}
+                    <p class="text-xs text-gray-400 mt-1">
+                        <i data-feather="users" class="w-3 h-3 inline"></i>
+                        Aucun membre encore
+                    </p>
+                {% endif %}
             </div>
         </div>
 
@@ -139,6 +156,38 @@
                 <span class="inline-block text-sm font-medium border-b border-brand-accent pb-0.5 group-hover:border-white transition">Ouvrir la vue →</span>
             </div>
         </a>
+
+        <!-- ENHANCED: Generations Detail Card -->
+        {% if total_generations > 1 %}
+        <div class="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <i data-feather="git-merge" class="w-4 h-4 text-amber-600"></i>
+                </div>
+                <h4 class="font-serif font-bold text-amber-800">Étendue familiale</h4>
+            </div>
+            <div class="space-y-2 text-sm">
+                {% if generations.oldest_birth and generations.newest_birth %}
+                    <div class="flex justify-between">
+                        <span class="text-amber-700">Plus ancien:</span>
+                        <span class="font-medium text-amber-800">{{ generations.oldest_birth.year }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-amber-700">Plus récent:</span>
+                        <span class="font-medium text-amber-800">{{ generations.newest_birth.year }}</span>
+                    </div>
+                    <!-- <div class="flex justify-between border-t border-amber-200 pt-2 mt-2">
+                        <span class="text-amber-700">Étendue:</span>
+                        <span class="font-bold text-amber-800">{{ generations.newest_birth.year|add:'-'|add:generations.oldest_birth.year }} ans</span>
+                    </div> -->
+                {% endif %}
+                <p class="text-xs text-amber-600 mt-3">
+                    <i data-feather="info" class="w-3 h-3 inline"></i>
+                    {{ total_generations }} génération{{ total_generations|pluralize }} dans votre arbre
+                </p>
+            </div>
+        </div>
+        {% endif %}
 
         <!-- Carte Actions Rapides -->
         <div class="bg-white rounded-xl border border-brand-border p-6 shadow-sm">
