@@ -70,6 +70,24 @@
                                     {{ person.profession }}
                                 </p>
                                 {% endif %}
+
+                                <!-- NOUVEAU - Affichage des informations tribales et claniques -->
+                                {% if person.tribus or person.clan %}
+                                <div class="mt-3 pt-3 border-t border-green-400/30">
+                                    {% if person.tribus %}
+                                    <p class="flex items-center gap-2">
+                                        <i data-feather="users" class="w-4 h-4"></i>
+                                        Tribu: {{ person.tribus }}
+                                    </p>
+                                    {% endif %}
+                                    {% if person.clan %}
+                                    <p class="flex items-center gap-2">
+                                        <i data-feather="shield" class="w-4 h-4"></i>
+                                        Clan: {{ person.clan }}
+                                    </p>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
                             </div>
                         </div>
                         
@@ -112,10 +130,103 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Informations détaillées dans la carte principale -->
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        <!-- Informations personnelles détaillées -->
+                        <div>
+                            <h3 class="font-serif text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                <i data-feather="user" class="w-5 h-5 text-brand-primary"></i>
+                                Informations personnelles
+                            </h3>
+                            
+                            <div class="space-y-3 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Prénom:</span>
+                                    <span class="font-medium">{{ person.first_name }}</span>
+                                </div>
+                                
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Nom de famille:</span>
+                                    <span class="font-medium">{{ person.last_name }}</span>
+                                </div>
+                                
+                                {% if person.maiden_name %}
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Nom de jeune fille:</span>
+                                    <span class="font-medium">{{ person.maiden_name }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Genre:</span>
+                                    <span class="font-medium">{{ person.get_gender_display }}</span>
+                                </div>
+
+                                <!-- NOUVEAU - Informations tribales et claniques détaillées -->
+                                {% if person.tribus %}
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Tribu:</span>
+                                    <span class="font-medium text-brand-primary">{{ person.tribus }}</span>
+                                </div>
+                                {% endif %}
+
+                                {% if person.clan %}
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Clan:</span>
+                                    <span class="font-medium text-brand-primary">{{ person.clan }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if person.get_age %}
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Âge:</span>
+                                    <span class="font-medium">{{ person.get_age }} ans</span>
+                                </div>
+                                {% endif %}
+                                
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Statut:</span>
+                                    <span class="font-medium {% if person.is_deceased %}text-red-600{% else %}text-green-600{% endif %}">
+                                        {% if person.is_deceased %}Décédé{{ person.gender|yesno:",,e" }}{% else %}En vie{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Éducation et profession -->
+                        {% if person.education or person.profession %}
+                        <div>
+                            <h3 class="font-serif text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                <i data-feather="book" class="w-5 h-5 text-brand-primary"></i>
+                                Éducation et carrière
+                            </h3>
+                            
+                            <div class="space-y-3 text-sm">
+                                {% if person.profession %}
+                                <div>
+                                    <span class="text-gray-600 block mb-1">Profession:</span>
+                                    <span class="font-medium">{{ person.profession }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if person.education %}
+                                <div>
+                                    <span class="text-gray-600 block mb-1">Formation:</span>
+                                    <p class="text-gray-900 leading-relaxed">{{ person.education|linebreaks }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
                 
                 <!-- Biographie -->
                 {% if person.biography %}
-                <div class="p-6">
+                <div class="p-6 border-t border-gray-100">
                     <h3 class="font-serif text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
                         <i data-feather="book-open" class="w-5 h-5 text-gray-400"></i>
                         Biographie

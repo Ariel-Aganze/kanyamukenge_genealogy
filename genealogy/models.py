@@ -26,6 +26,9 @@ class Person(models.Model):
     last_name = models.CharField(max_length=100)
     maiden_name = models.CharField(max_length=100, blank=True, null=True, help_text="Nom de jeune fille")
     gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
+
+    tribus = models.CharField(max_length=100, blank=True, null=True, help_text="Tribu d'appartenance")
+    clan = models.CharField(max_length=100, blank=True, null=True, help_text="Clan d'appartenance")
     
     # Dates
     birth_date = models.DateField(null=True, blank=True)

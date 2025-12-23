@@ -6,17 +6,18 @@ from .models import (
 
 @admin.register(Person)
 class PersonAdmin(admin.ModelAdmin):
-    """Admin interface for Person model"""
+    """Admin interface for Person model - UPDATED WITH TRIBUS AND CLAN"""
     
     list_display = [
-        'get_full_name', 'gender', 'birth_date', 'death_date',
+        'get_full_name', 'gender', 'tribus', 'clan', 'birth_date', 'death_date',
         'is_deceased', 'visibility', 'created_by', 'created_at'
     ]
     list_filter = [
-        'gender', 'is_deceased', 'visibility', 'created_at'
+        'gender', 'tribus', 'clan', 'is_deceased', 'visibility', 'created_at'
     ]
     search_fields = [
-        'first_name', 'last_name', 'maiden_name', 'birth_place', 'death_place'
+        'first_name', 'last_name', 'maiden_name', 'tribus', 'clan', 
+        'birth_place', 'death_place'
     ]
     readonly_fields = ['created_at', 'updated_at']
     ordering = ['last_name', 'first_name']
@@ -26,6 +27,12 @@ class PersonAdmin(admin.ModelAdmin):
             'fields': (
                 'first_name', 'last_name', 'maiden_name', 'gender'
             )
+        }),
+        ('Identification tribale et clanique', {  # NOUVELLE SECTION
+            'fields': (
+                'tribus', 'clan'
+            ),
+            'description': 'Informations sur l\'appartenance tribale et clanique'
         }),
         ('Dates et lieux', {
             'fields': (
@@ -46,6 +53,18 @@ class PersonAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    # Permettre le filtrage par tribu et clan dans la liste
+    def get_list_filter(self, request):
+        list_filter = list(super().get_list_filter(request))
+        
+        # Ajouter des filtres dynamiques pour les tribus et clans existants
+        if Person.objects.filter(tribus__isnull=False).exists():
+            list_filter.insert(2, 'tribus')
+        if Person.objects.filter(clan__isnull=False).exists():
+            list_filter.insert(3, 'clan')
+            
+        return list_filter
 
 
 @admin.register(Partnership)

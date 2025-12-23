@@ -181,7 +181,6 @@
                             <h4 class="font-semibold text-gray-700 mb-2"> Visible sans connexion :</h4>
                             <ul class="text-gray-600 space-y-1">
                                 <li>• Noms et prénoms</li>
-                                <li>• Années de naissance/décès</li>
                                 <li>• Structure familiale de base</li>
                                 <li>• Relations parent-enfant</li>
                             </ul>
@@ -190,6 +189,7 @@
                             <h4 class="font-semibold text-gray-700 mb-2">Réservé aux membres :</h4>
                             <ul class="text-gray-600 space-y-1">
                                 <li>• Photos et portraits</li>
+                                <li>• Années de naissance/décès</li>
                                 <li>• Biographies détaillées</li>
                                 <li>• Documents et archives</li>
                                 <li>• Informations de contact</li>
@@ -257,7 +257,7 @@ let zoomBehavior;
 // Tree layout configuration - adapted for public view
 const config = {
     nodeWidth: 220,
-    nodeHeight: 110, // Slightly smaller since less content
+    nodeHeight: 100, // Reduced height since no birth/death dates
     horizontalSpacing: 80,
     verticalSpacing: 150,
     generationHeight: 180,
@@ -570,29 +570,16 @@ function drawPersonNodes(layout) {
             // Public view: No photos, just avatar
             createPublicAvatar(cardGroup, colors, person);
             
-            // Name
+            // Name only - centered vertically
             cardGroup.append('text')
                 .attr('x', config.nodeWidth / 2)
-                .attr('y', 55)
+                .attr('y', 65)
                 .attr('text-anchor', 'middle')
                 .attr('font-family', 'Playfair Display, serif')
                 .attr('font-size', '14px')
                 .attr('font-weight', '600')
                 .attr('fill', '#1f2937')
                 .text(truncateText(person.name || 'Membre famille', 20));
-            
-            // Birth/Death years (if available)
-            const lifeSpan = getPublicLifeSpan(person);
-            if (lifeSpan) {
-                cardGroup.append('text')
-                    .attr('x', config.nodeWidth / 2)
-                    .attr('y', 72)
-                    .attr('text-anchor', 'middle')
-                    .attr('font-family', 'Inter, sans-serif')
-                    .attr('font-size', '11px')
-                    .attr('fill', '#6b7280')
-                    .text(lifeSpan);
-            }
             
             // Lock icon for private info
             const lockGroup = cardGroup.append('g')
@@ -666,18 +653,6 @@ function getPersonColors(person) {
     }
 }
 
-function getPublicLifeSpan(person) {
-    // Only show years for public view
-    if (person.birth_year && person.death_year) {
-        return `${person.birth_year} - ${person.death_year}`;
-    } else if (person.birth_year) {
-        return `Né(e) en ${person.birth_year}`;
-    } else if (person.death_year) {
-        return `Décédé(e) en ${person.death_year}`;
-    }
-    return null;
-}
-
 function truncateText(text, maxLength) {
     if (!text) return '';
     return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
@@ -690,16 +665,8 @@ function showPublicPersonInfo(person) {
     
     let content = '';
     
-    if (person.birth_year) {
-        content += `<div class="flex items-center gap-2"><i data-feather="calendar" class="w-4 h-4 text-blue-600"></i>Né(e) en ${person.birth_year}</div>`;
-    }
-    
-    if (person.death_year) {
-        content += `<div class="flex items-center gap-2"><i data-feather="calendar" class="w-4 h-4 text-red-600"></i>Décédé(e) en ${person.death_year}</div>`;
-    }
-    
     if (person.children && person.children.length > 0) {
-        // content += `<div class="flex items-center gap-2"><i data-feather="users" class="w-4 h-4 text-amber-600"></i>${person.children.length} enfant(s)</div>`;
+        content += `<div class="flex items-center gap-2"><i data-feather="users" class="w-4 h-4 text-amber-600"></i>${person.children.length} enfant(s)</div>`;
     }
     
     // Add limited info notice

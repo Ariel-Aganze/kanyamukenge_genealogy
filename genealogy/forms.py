@@ -5,12 +5,13 @@ from .models import Person, Partnership, ParentChild, ModificationProposal, Fami
 
 
 class PersonForm(forms.ModelForm):
-    """Form for creating and editing people - FIXED DATE HANDLING"""
+    """Form for creating and editing people - UPDATED WITH TRIBUS AND CLAN"""
     
     class Meta:
         model = Person
         fields = [
             'first_name', 'last_name', 'maiden_name', 'gender',
+            'tribus', 'clan',  # NEW FIELDS
             'birth_date', 'birth_place', 'death_date', 'death_place',
             'profession', 'education', 'biography', 'photo', 'visibility'
         ]
@@ -30,28 +31,34 @@ class PersonForm(forms.ModelForm):
             'gender': forms.Select(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent'
             }),
+            # NEW FIELDS - Tribus and Clan widgets
+            'tribus': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
+                'placeholder': 'Tribu (optionnel)'
+            }),
+            'clan': forms.TextInput(attrs={
+                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
+                'placeholder': 'Clan (optionnel)'
+            }),
             # FIXED: Proper date input configuration
             'birth_date': forms.DateInput(
                 attrs={
                     'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
-                    'type': 'date',
-                    'placeholder': 'YYYY-MM-DD'
+                    'type': 'date'
                 },
-                format='%Y-%m-%d'  # IMPORTANT: This ensures proper date formatting
+                format='%Y-%m-%d'
+            ),
+            'death_date': forms.DateInput(
+                attrs={
+                    'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
+                    'type': 'date'
+                },
+                format='%Y-%m-%d'
             ),
             'birth_place': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
                 'placeholder': 'Lieu de naissance'
             }),
-            # FIXED: Proper date input configuration
-            'death_date': forms.DateInput(
-                attrs={
-                    'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
-                    'type': 'date',
-                    'placeholder': 'YYYY-MM-DD'
-                },
-                format='%Y-%m-%d'  # IMPORTANT: This ensures proper date formatting
-            ),
             'death_place': forms.TextInput(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
                 'placeholder': 'Lieu de décès'
@@ -63,7 +70,7 @@ class PersonForm(forms.ModelForm):
             'education': forms.Textarea(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
                 'rows': 3,
-                'placeholder': 'Éducation et formation...'
+                'placeholder': 'Formation, éducation, diplômes...'
             }),
             'biography': forms.Textarea(attrs={
                 'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
@@ -71,7 +78,7 @@ class PersonForm(forms.ModelForm):
                 'placeholder': 'Biographie, histoire de vie, anecdotes...'
             }),
             'photo': forms.FileInput(attrs={
-                'class': 'hidden',  # Hidden since we use drag & drop
+                'class': 'w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent',
                 'accept': 'image/*'
             }),
             'visibility': forms.Select(attrs={
@@ -79,39 +86,38 @@ class PersonForm(forms.ModelForm):
             })
         }
 
-    # IMPORTANT: Override __init__ to handle date formatting properly
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         
-        # Set input formats for date fields to handle both input and display
-        self.fields['birth_date'].input_formats = ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']
-        self.fields['death_date'].input_formats = ['%Y-%m-%d', '%d/%m/%Y', '%d-%m-%Y']
+        # Set date input format
+        self.fields['birth_date'].input_formats = ['%Y-%m-%d']
+        self.fields['death_date'].input_formats = ['%Y-%m-%d']
         
-        # If we have an instance (editing), ensure dates are properly formatted
+        # Handle date field values properly
         if self.instance and self.instance.pk:
             if self.instance.birth_date:
-                self.fields['birth_date'].widget.attrs['value'] = self.instance.birth_date.strftime('%Y-%m-%d')
+                self.initial['birth_date'] = self.instance.birth_date.strftime('%Y-%m-%d')
             if self.instance.death_date:
-                self.fields['death_date'].widget.attrs['value'] = self.instance.death_date.strftime('%Y-%m-%d')
-    
+                self.initial['death_date'] = self.instance.death_date.strftime('%Y-%m-%d')
+
     def clean(self):
         cleaned_data = super().clean()
         birth_date = cleaned_data.get('birth_date')
         death_date = cleaned_data.get('death_date')
         
-        # Validate dates
-        if birth_date and death_date:
-            if death_date <= birth_date:
-                raise ValidationError({
-                    'death_date': 'La date de décès doit être postérieure à la date de naissance.'
-                })
-        
-        # Validate birth date is not in the future
+        # Validate that birth date is not in the future
         if birth_date:
             from datetime import date
             if birth_date > date.today():
                 raise ValidationError({
                     'birth_date': 'La date de naissance ne peut pas être dans le futur.'
+                })
+        
+        # Validate that death date is after birth date
+        if birth_date and death_date:
+            if death_date <= birth_date:
+                raise ValidationError({
+                    'death_date': 'La date de décès doit être postérieure à la date de naissance.'
                 })
         
         # Validate death date is not in the future

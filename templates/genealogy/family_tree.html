@@ -603,41 +603,30 @@ function drawPersonNodes(layout) {
                 .attr('fill', '#1f2937')
                 .text(truncateText(person.name || 'Inconnu', 20));
             
-            // Birth/Death years
-            const lifeSpan = getLifeSpan(person);
-            if (lifeSpan) {
+            // Profession (moved up to replace birth/death years)
+            if (person.profession) {
                 cardGroup.append('text')
                     .attr('x', config.nodeWidth / 2)
                     .attr('y', 75)
                     .attr('text-anchor', 'middle')
                     .attr('font-family', 'Inter, sans-serif')
                     .attr('font-size', '11px')
-                    .attr('fill', '#6b7280')
-                    .text(lifeSpan);
-            }
-            
-            // Profession
-            if (person.profession) {
-                cardGroup.append('text')
-                    .attr('x', config.nodeWidth / 2)
-                    .attr('y', 90)
-                    .attr('text-anchor', 'middle')
-                    .attr('font-family', 'Inter, sans-serif')
-                    .attr('font-size', '10px')
                     .attr('fill', '#9ca3af')
                     .text(truncateText(person.profession, 25));
             }
             
-            // Age indicator
-            if (person.age !== undefined) {
+            // UPDATED: Marital status indicator (moved up to better position)
+            const maritalStatus = getMaritalStatus(person);
+            if (maritalStatus) {
                 cardGroup.append('text')
                     .attr('x', config.nodeWidth / 2)
-                    .attr('y', 105)
+                    .attr('y', person.profession ? 95 : 80)
                     .attr('text-anchor', 'middle')
                     .attr('font-family', 'Inter, sans-serif')
-                    .attr('font-size', '9px')
-                    .attr('fill', person.is_deceased ? '#dc2626' : '#059669')
-                    .text(person.is_deceased ? 'Décédé(e)' : `${person.age} ans`);
+                    .attr('font-size', '10px')
+                    .attr('font-weight', '500')
+                    .attr('fill', maritalStatus.color)
+                    .text(maritalStatus.text);
             }
             
             // Animate entrance
@@ -650,6 +639,53 @@ function drawPersonNodes(layout) {
                 .ease(d3.easeBackOut.overshoot(1.2));
         });
     });
+}
+
+// NEW: Function to determine marital status
+function getMaritalStatus(person) {
+    if (person.is_deceased) {
+        return { text: 'Décédé(e)', color: '#dc2626' };
+    }
+    
+    // Check if person has partners
+    if (person.partners && person.partners.length > 0) {
+        // Check if any partner is still alive
+        const livingPartners = [];
+        const deceasedPartners = [];
+        
+        person.partners.forEach(partnerId => {
+            const partner = treeData.individuals[partnerId];
+            if (partner) {
+                if (partner.is_deceased) {
+                    deceasedPartners.push(partner);
+                } else {
+                    livingPartners.push(partner);
+                }
+            }
+        });
+        
+        // If all partners are deceased, person is widowed
+        if (livingPartners.length === 0 && deceasedPartners.length > 0) {
+            return { text: person.gender === 'F' ? 'Veuve' : 'Veuf', color: '#6366f1' };
+        }
+        
+        // If has living partners
+        if (livingPartners.length > 0) {
+            if (livingPartners.length === 1 && deceasedPartners.length === 0) {
+                return { text: 'Marié(e)', color: '#059669' };
+            } else {
+                return { text: 'Remarié(e)', color: '#0891b2' };
+            }
+        }
+    }
+    
+    // Check if person has children but no current partner (could be divorced/single parent)
+    if (person.children && person.children.length > 0) {
+        return { text: 'Parent', color: '#7c3aed' };
+    }
+    
+    // Default to single
+    return { text: 'Célibataire', color: '#6b7280' };
 }
 
 function createDefaultAvatar(cardGroup, colors, person) {
@@ -680,17 +716,6 @@ function getPersonColors(person) {
     } else {
         return config.colors.unknown;
     }
-}
-
-function getLifeSpan(person) {
-    if (person.birth_year && person.death_year) {
-        return `${person.birth_year} - ${person.death_year}`;
-    } else if (person.birth_year) {
-        return `Né(e) en ${person.birth_year}`;
-    } else if (person.death_year) {
-        return `Décédé(e) en ${person.death_year}`;
-    }
-    return null;
 }
 
 function truncateText(text, maxLength) {
@@ -733,6 +758,12 @@ function showPersonInfo(person) {
     
     if (person.children && person.children.length > 0) {
         content += `<div class="flex items-center gap-2"><i data-feather="users" class="w-4 h-4 text-amber-600"></i>${person.children.length} enfant(s)</div>`;
+    }
+    
+    // Add marital status to info panel
+    const maritalStatus = getMaritalStatus(person);
+    if (maritalStatus) {
+        content += `<div class="flex items-center gap-2"><i data-feather="heart" class="w-4 h-4" style="color: ${maritalStatus.color}"></i>${maritalStatus.text}</div>`;
     }
     
     document.getElementById('infoPanelContent').innerHTML = content;
