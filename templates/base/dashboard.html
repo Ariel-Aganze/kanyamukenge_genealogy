@@ -1,4 +1,6 @@
 {% extends 'base/base.html' %}
+{% load static %}
+
 
 {% block body %}
 <div class="bg-brand-bg text-brand-text font-sans antialiased h-screen flex overflow-hidden">
@@ -391,6 +393,225 @@
         </div>
     </div>
 </div>
+
+<!-- ==================== ADD SESSION MANAGEMENT CODE HERE ==================== -->
+{% if user.is_authenticated %}
+<!-- Session Management Scripts and Styles -->
+<style>
+    /* Session Warning Modal Styles */
+    #session-warning-modal {
+        backdrop-filter: blur(4px);
+    }
+    
+    #session-warning-modal .session-modal-content {
+        animation: sessionModalSlideIn 0.3s ease-out;
+    }
+    
+    @keyframes sessionModalSlideIn {
+        from {
+            opacity: 0;
+            transform: scale(0.9) translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
+    
+    .session-countdown {
+        font-family: 'Courier New', monospace;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Session status indicator */
+    .session-status-indicator {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        display: none;
+    }
+    
+    .session-status-indicator.show {
+        display: block;
+        animation: fadeInUp 0.3s ease-out;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+<!-- Session Status Indicator (Optional) -->
+<!-- <div id="session-status-indicator" class="session-status-indicator">
+    <div class="bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[200px]">
+        <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-700">Session:</span>
+            <span id="session-time-display" class="text-sm font-mono text-green-600">--:--</span>
+        </div>
+        <div class="mt-1">
+            <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                <div id="session-progress-bar" class="h-full bg-green-500 transition-all duration-1000" style="width: 100%"></div>
+            </div>
+        </div>
+    </div>
+</div> -->
+
+<!-- Session Management JavaScript -->
+<script>
+// Session configuration from Django settings
+window.sessionConfig = {
+    checkInterval: 30000, // 30 seconds
+    warningTime: {{ settings.SESSION_WARNING_SECONDS|default:300 }}, // From Django settings
+    autoExtend: {{ settings.SESSION_AUTO_EXTEND|default:False|yesno:"true,false" }}, // From Django settings
+    endpoints: {
+        check: '{% url "accounts:session_check" %}',
+        extend: '{% url "accounts:extend_session" %}',
+        logout: '{% url "accounts:logout" %}'
+    },
+    user: {
+        role: '{{ user.role|default:"user" }}',
+        isAdmin: {% if user.role == 'admin' %}true{% else %}false{% endif %}
+    }
+};
+
+// Enhanced session manager initialization
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.sessionConfig) {
+        console.log('🔐 Initializing Session Manager with config:', window.sessionConfig);
+        
+        // Initialize session manager with Django configuration
+        window.sessionManager = new SessionManager(window.sessionConfig);
+        
+        // Add admin-specific features
+        // if (window.sessionConfig.user.isAdmin) {
+        //     // Admins get a session status indicator
+        //     showSessionStatusIndicator();
+        // }
+        
+        // Add keyboard shortcuts for session management
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+Shift+E to extend session
+            if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+                e.preventDefault();
+                if (window.sessionManager) {
+                    window.sessionManager.extendSession();
+                }
+            }
+            
+            // Ctrl+Shift+L to logout
+            if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+                e.preventDefault();
+                if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
+                    window.location.href = window.sessionConfig.endpoints.logout;
+                }
+            }
+        });
+    }
+});
+
+// Session status indicator functionality
+function showSessionStatusIndicator() {
+    const indicator = document.getElementById('session-status-indicator');
+    const timeDisplay = document.getElementById('session-time-display');
+    const progressBar = document.getElementById('session-progress-bar');
+    
+    if (!indicator) return;
+    
+    // Show indicator for admins
+    indicator.classList.add('show');
+    
+    // Update display every 30 seconds
+    setInterval(async function() {
+        try {
+            const response = await fetch(window.sessionConfig.endpoints.check);
+            const data = await response.json();
+            
+            if (data.status === 'active' || data.status === 'warning') {
+                const remaining = data.time_remaining || 0;
+                const minutes = Math.floor(remaining / 60);
+                const seconds = remaining % 60;
+                
+                timeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                // Update progress bar
+                const totalTime = 7200; // 2 hours default
+                const percentage = (remaining / totalTime) * 100;
+                progressBar.style.width = `${Math.max(0, percentage)}%`;
+                
+                // Change color based on time remaining
+                if (remaining <= 300) { // 5 minutes
+                    progressBar.className = 'h-full bg-red-500 transition-all duration-1000';
+                    timeDisplay.className = 'text-sm font-mono text-red-600';
+                } else if (remaining <= 900) { // 15 minutes
+                    progressBar.className = 'h-full bg-yellow-500 transition-all duration-1000';
+                    timeDisplay.className = 'text-sm font-mono text-yellow-600';
+                } else {
+                    progressBar.className = 'h-full bg-green-500 transition-all duration-1000';
+                    timeDisplay.className = 'text-sm font-mono text-green-600';
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to update session status indicator:', error);
+        }
+    }, 30000);
+}
+
+// Global session utilities
+window.sessionUtils = {
+    extendSession: function() {
+        if (window.sessionManager) {
+            return window.sessionManager.extendSession();
+        }
+    },
+    
+    checkStatus: function() {
+        if (window.sessionManager) {
+            return window.sessionManager.checkSessionStatus();
+        }
+    },
+    
+    showTimeRemaining: function() {
+        if (window.sessionManager) {
+            window.sessionManager.checkSessionStatus();
+        }
+    }
+};
+
+// Add session management to window for debugging
+if (window.sessionConfig?.user?.isAdmin) {
+    window.sessionDebug = {
+        config: window.sessionConfig,
+        manager: () => window.sessionManager,
+        utils: window.sessionUtils
+    };
+}
+</script>
+
+<!-- Load session manager JavaScript -->
+<script src="{% static 'js/session-manager.js' %}"></script>
+
+<!-- Add data attributes for JavaScript detection -->
+<script>
+document.body.setAttribute('data-authenticated', 'true');
+document.body.setAttribute('data-user-role', '{{ user.role|default:"user" }}');
+</script>
+
+<!-- Session management is now active for authenticated users -->
+<noscript>
+    <div class="fixed top-0 left-0 right-0 bg-red-600 text-white text-center p-2 z-50">
+        JavaScript est requis pour la gestion automatique des sessions. Veuillez l'activer.
+    </div>
+</noscript>
+{% endif %}
+<!-- ==================== END SESSION MANAGEMENT CODE ==================== -->
 
 <script>
 // Remplacer les icônes Feather

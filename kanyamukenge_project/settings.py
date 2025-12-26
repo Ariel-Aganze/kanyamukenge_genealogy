@@ -54,7 +54,9 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',  
+    'accounts.middleware.SessionTimeoutMiddleware',          
+    'accounts.middleware.SessionSecurityMiddleware',         
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
@@ -122,6 +124,31 @@ AUTH_PASSWORD_VALIDATORS = [
 LOGIN_URL = '/accounts/login/'
 LOGIN_REDIRECT_URL = '/dashboard/'
 LOGOUT_REDIRECT_URL = '/'
+
+# ==============================================================================
+# SESSION TIMEOUT SETTINGS
+# ==============================================================================
+
+# Session timeout in seconds (default: 2 hours)
+SESSION_TIMEOUT_SECONDS = config('SESSION_TIMEOUT_SECONDS', default=7200, cast=int)
+
+# Warning time before session expires (default: 5 minutes)
+SESSION_WARNING_SECONDS = config('SESSION_WARNING_SECONDS', default=300, cast=int)
+
+# Admin session timeout (can be longer than regular users)
+ADMIN_SESSION_TIMEOUT_SECONDS = config('ADMIN_SESSION_TIMEOUT_SECONDS', default=14400, cast=int)  # 4 hours
+
+# Auto-extend session on user activity
+SESSION_AUTO_EXTEND = config('SESSION_AUTO_EXTEND', default=False, cast=bool)
+
+# Security features
+PREVENT_CONCURRENT_SESSIONS = config('PREVENT_CONCURRENT_SESSIONS', default=False, cast=bool)
+CHECK_SESSION_IP = config('CHECK_SESSION_IP', default=False, cast=bool)
+
+# Session security settings
+SESSION_COOKIE_AGE = SESSION_TIMEOUT_SECONDS
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_SAVE_EVERY_REQUEST = True
 
 # ==============================================================================
 # INTERNATIONALIZATION
@@ -216,10 +243,14 @@ if not DEBUG:
     CSRF_COOKIE_SECURE = True
     SESSION_COOKIE_HTTPONLY = True
     CSRF_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = 'Strict'
     
-    # Session timeout (2 heures d'inactivité)
-    SESSION_COOKIE_AGE = 7200
-    SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+    # Enable all security features in production
+    PREVENT_CONCURRENT_SESSIONS = True
+    CHECK_SESSION_IP = True
+    
+    # Longer admin sessions in production
+    ADMIN_SESSION_TIMEOUT_SECONDS = config('PROD_ADMIN_SESSION_TIMEOUT_SECONDS', default=28800, cast=int)  # 8 hours
 
 # ==============================================================================
 # LOGGING
@@ -270,6 +301,11 @@ LOGGING = {
             'level': 'INFO',
             'propagate': False,
         },
+        'session': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
 }
 
@@ -290,6 +326,7 @@ if LOGS_DIR.exists() or not DEBUG:
     # Ajouter le handler file aux loggers
     LOGGING['loggers']['accounts']['handlers'].append('file')
     LOGGING['loggers']['genealogy']['handlers'].append('file')
+    LOGGING['loggers']['session']['handlers'].append('file')
     
 # ==============================================================================
 # MESSAGE FRAMEWORK
@@ -303,6 +340,7 @@ MESSAGE_TAGS = {
     messages.SUCCESS: 'success',
     messages.WARNING: 'warning',
     messages.ERROR: 'error',
+    50: 'critical',  # For session security alerts
 }
 
 # ==============================================================================
@@ -342,6 +380,14 @@ ADMIN_URL = config('ADMIN_URL', default='admin/')
 # ==============================================================================
 
 if DEBUG:
+    # Shorter timeouts for development testing
+    SESSION_TIMEOUT_SECONDS = config('DEV_SESSION_TIMEOUT_SECONDS', default=1200, cast=int)  # 20 minutes
+    SESSION_WARNING_SECONDS = config('DEV_SESSION_WARNING_SECONDS', default=300, cast=int)   # 5 minutes
+    
+    # Enable session security features for testing
+    PREVENT_CONCURRENT_SESSIONS = config('DEV_PREVENT_CONCURRENT_SESSIONS', default=False, cast=bool)
+    CHECK_SESSION_IP = config('DEV_CHECK_SESSION_IP', default=False, cast=bool)  # Can cause issues in dev
+    
     # Django Debug Toolbar (à installer si nécessaire : pip install django-debug-toolbar)
     try:
         import debug_toolbar
