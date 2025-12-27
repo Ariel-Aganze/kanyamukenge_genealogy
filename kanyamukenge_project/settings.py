@@ -34,6 +34,7 @@ DJANGO_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'whitenoise.runserver_nostatic',
     'django.contrib.humanize',  # Pour les filtres de template (timesince, etc.)
 ]
 
@@ -58,7 +59,13 @@ MIDDLEWARE = [
     'accounts.middleware.SessionTimeoutMiddleware',          
     'accounts.middleware.SessionSecurityMiddleware',         
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
 ]
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+WHITENOISE_USE_FINDERS = True
+WHITENOISE_AUTOREFRESH = True
 
 ROOT_URLCONF = 'kanyamukenge_project.urls'
 
@@ -168,6 +175,12 @@ STATICFILES_DIRS = [
     BASE_DIR / 'static',
 ]
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+
+# Static file finders
+STATICFILES_FINDERS = [
+    'django.contrib.staticfiles.finders.FileSystemFinder',
+    'django.contrib.staticfiles.finders.AppDirectoriesFinder',
+]
 
 # ==============================================================================
 # MEDIA FILES (User uploads)

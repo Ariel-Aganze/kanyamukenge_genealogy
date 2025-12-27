@@ -1,0 +1,41 @@
+{% extends "errors/base.html" %}
+
+{% block title %}Requête incorrecte - Famille KANYAMUKENGE{% endblock %}
+
+{% block error_icon %}
+<div class="mx-auto w-24 h-24 bg-yellow-100 rounded-full flex items-center justify-center mb-6">
+    <i data-feather="alert-circle" class="w-12 h-12 text-yellow-600"></i>
+</div>
+{% endblock %}
+
+{% block action_buttons %}
+<button onclick="history.back()" class="pulse-button group bg-brand-primary text-white px-8 py-4 rounded-full font-medium hover:bg-green-800 transition shadow-lg w-full md:w-auto inline-flex items-center justify-center gap-2">
+    <i data-feather="arrow-left" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+    Page précédente
+</button>
+
+<a href="/" class="pulse-button group bg-gray-600 text-white px-8 py-4 rounded-full font-medium hover:bg-gray-700 transition shadow-lg w-full md:w-auto inline-flex items-center justify-center gap-2">
+    <i data-feather="home" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+    Retour à l'accueil
+</a>
+
+{% if user and user.is_authenticated %}
+<a href="/dashboard/" class="pulse-button group bg-brand-accent text-white px-8 py-4 rounded-full font-medium hover:bg-amber-800 transition shadow-lg w-full md:w-auto inline-flex items-center justify-center gap-2">
+    <i data-feather="layout" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+    Tableau de bord
+</a>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+{{ block.super }}
+<script>
+// Track bad request errors
+console.log('400 Error tracked:', {
+    path: '{{ request_path|escapejs }}',
+    timestamp: new Date().toISOString(),
+    user: '{{ user.username|default:"anonymous"|escapejs }}',
+    referrer: document.referrer
+});
+</script>
+{% endblock %}

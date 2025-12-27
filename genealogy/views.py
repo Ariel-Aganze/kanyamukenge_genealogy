@@ -46,31 +46,97 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 def home(request):
-    """Public home page showing family tree overview"""
+    """
+    Public home page showing family tree overview - ROBUST VERSION
+    """
+    try:
+        # Redirect authenticated users to dashboard
+        if request.user.is_authenticated:
+            return redirect('/dashboard/')
 
-    # Redirect logged-in users to dashboard
-    if request.user.is_authenticated:
-        return redirect('/dashboard/')
+        # Initialize default context values
+        context = {
+            'public_people': [],
+            'total_people': 0,
+            'generations': {
+                'oldest_birth': None,
+                'newest_birth': None,
+            },
+            'total_generations': 1,
+            'has_data': False
+        }
 
-    # Public family members
-    public_people = Person.objects.filter(
-        visibility='public'
-    ).order_by('last_name')
+        try:
+            # Get public family members safely
+            public_people = Person.objects.filter(visibility='public').order_by('last_name', 'first_name')
+            context['public_people'] = public_people[:10]  # Show first 10
+            context['has_data'] = public_people.exists()
+        except Exception as e:
+            logger.error(f"Error fetching public people: {e}")
+            context['public_people'] = []
 
-    # Statistics
-    total_people = Person.objects.count()
-    generations = Person.objects.aggregate(
-        oldest_birth=models.Min('birth_date'),
-        newest_birth=models.Max('birth_date')
-    )
+        try:
+            # Get total people count safely
+            context['total_people'] = Person.objects.count()
+        except Exception as e:
+            logger.error(f"Error counting people: {e}")
+            context['total_people'] = 0
 
-    context = {
-        'public_people': public_people[:10],  # Show first 10
-        'total_people': total_people,
-        'generations': generations,
-    }
+        try:
+            # Calculate generations safely
+            if context['total_people'] > 0:
+                # Get oldest and newest birth dates
+                oldest_person = Person.objects.filter(birth_date__isnull=False).order_by('birth_date').first()
+                newest_person = Person.objects.filter(birth_date__isnull=False).order_by('-birth_date').first()
+                
+                if oldest_person and newest_person and oldest_person.birth_date and newest_person.birth_date:
+                    context['generations']['oldest_birth'] = oldest_person.birth_date
+                    context['generations']['newest_birth'] = newest_person.birth_date
+                    
+                    # Estimate generations (roughly 25 years per generation)
+                    year_span = newest_person.birth_date.year - oldest_person.birth_date.year
+                    context['total_generations'] = max(1, (year_span // 25) + 1)
+                
+        except Exception as e:
+            logger.error(f"Error calculating generations: {e}")
+            # Keep default values
 
-    return render(request, 'genealogy/home.html', context)
+        # Additional safe statistics
+        try:
+            # Count living vs deceased
+            context['living_count'] = Person.objects.filter(is_deceased=False).count()
+            context['deceased_count'] = Person.objects.filter(is_deceased=True).count()
+        except Exception as e:
+            logger.error(f"Error counting living/deceased: {e}")
+            context['living_count'] = 0
+            context['deceased_count'] = 0
+
+        try:
+            # Recent additions (public only)
+            context['recent_additions'] = Person.objects.filter(
+                visibility='public'
+            ).order_by('-created_at')[:3] if hasattr(Person, 'created_at') else []
+        except Exception as e:
+            logger.error(f"Error fetching recent additions: {e}")
+            context['recent_additions'] = []
+
+        return render(request, 'genealogy/home.html', context)
+
+    except Exception as e:
+        logger.error(f"Critical error in home view: {e}")
+        # Fallback context for complete failure
+        fallback_context = {
+            'public_people': [],
+            'total_people': 0,
+            'generations': {'oldest_birth': None, 'newest_birth': None},
+            'total_generations': 1,
+            'has_data': False,
+            'error_message': "Erreur lors du chargement des données familiales.",
+            'living_count': 0,
+            'deceased_count': 0,
+            'recent_additions': []
+        }
+        return render(request, 'genealogy/home.html', fallback_context)
 
 
 @login_required
@@ -1238,17 +1304,93 @@ def get_family_tree_data(center_person, user):
 # Error handlers
 def permission_denied_view(request, exception=None):
     """Custom 403 error page"""
-    return render(request, 'errors/403.html', status=403)
+    try:
+        context = {
+            'request_path': request.path,
+            'user': request.user if request.user.is_authenticated else None,
+            'exception': str(exception) if exception else None,
+            'error_code': '403',
+            'error_title': 'Accès refusé',
+            'error_message': 'Vous n\'avez pas les permissions nécessaires pour accéder à cette page.',
+            'suggestions': [
+                'Connectez-vous avec un compte autorisé',
+                'Contactez l\'administrateur pour demander l\'accès',
+                'Retournez à la page d\'accueil'
+            ]
+        }
+        return render(request, 'errors/403.html', context, status=403)
+    except Exception as e:
+        logger.error(f"Error in 403 handler: {e}")
+        from django.http import HttpResponseForbidden
+        return HttpResponseForbidden("Accès refusé")
 
 
 def page_not_found_view(request, exception=None):
     """Custom 404 error page"""
-    return render(request, 'errors/404.html', status=404)
+    try:
+        context = {
+            'request_path': request.path,
+            'user': request.user if request.user.is_authenticated else None,
+            'error_code': '404',
+            'error_title': 'Page introuvable',
+            'error_message': 'La page que vous recherchez semble avoir été déplacée, supprimée ou n\'existe pas.',
+            'suggestions': [
+                'Vérifiez l\'orthographe de l\'adresse',
+                'Retournez à la page d\'accueil',
+                'Utilisez le menu de navigation'
+            ]
+        }
+        return render(request, 'errors/404.html', context, status=404)
+    except Exception as e:
+        logger.error(f"Error in 404 handler: {e}")
+        from django.http import HttpResponseNotFound
+        return HttpResponseNotFound("Page non trouvée")
 
 
 def server_error_view(request):
     """Custom 500 error page"""
-    return render(request, 'errors/500.html', status=500)
+    try:
+        context = {
+            'request_path': getattr(request, 'path', '/'),
+            'user': getattr(request, 'user', None) if hasattr(request, 'user') else None,
+            'error_code': '500',
+            'error_title': 'Erreur interne du serveur',
+            'error_message': 'Une erreur technique s\'est produite. Nos équipes ont été informées.',
+            'suggestions': [
+                'Rafraîchissez la page dans quelques instants',
+                'Retournez à la page d\'accueil',
+                'Contactez l\'administrateur si le problème persiste'
+            ]
+        }
+        return render(request, 'errors/500.html', context, status=500)
+    except Exception as e:
+        logger.error(f"Error in 500 handler: {e}")
+        from django.http import HttpResponseServerError
+        return HttpResponseServerError("Erreur serveur")
+
+
+# Add this custom 400 handler too
+def bad_request_view(request, exception=None):
+    """Custom 400 error page"""
+    try:
+        context = {
+            'request_path': request.path,
+            'user': request.user if request.user.is_authenticated else None,
+            'exception': str(exception) if exception else None,
+            'error_code': '400',
+            'error_title': 'Requête incorrecte',
+            'error_message': 'La requête envoyée n\'est pas valide ou contient des données incorrectes.',
+            'suggestions': [
+                'Vérifiez les informations saisies',
+                'Retournez à la page précédente',
+                'Contactez le support si l\'erreur persiste'
+            ]
+        }
+        return render(request, 'errors/400.html', context, status=400)
+    except Exception as e:
+        logger.error(f"Error in 400 handler: {e}")
+        from django.http import HttpResponseBadRequest
+        return HttpResponseBadRequest("Requête incorrecte")
 
 def public_tree_view(request, person_id=None):
     """Public family tree view - limited information"""
