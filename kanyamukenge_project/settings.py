@@ -1,15 +1,3 @@
-"""
-Django settings for kanyamukenge_project project.
-PRODUCTION VERSION - Optimized for Render deployment
-
-Key updates for Render:
-1. Production-ready ALLOWED_HOSTS configuration
-2. Database configuration for PostgreSQL on Render
-3. Enhanced security settings for production
-4. Proper CSRF and CORS configuration
-5. Static files optimized for production
-"""
-
 import os
 from pathlib import Path
 from decouple import config
