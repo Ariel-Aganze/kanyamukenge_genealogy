@@ -230,6 +230,8 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 SERVER_EMAIL = EMAIL_HOST_USER
 
+# OTP Settings
+OTP_EXPIRE_MINUTES = config('OTP_EXPIRE_MINUTES', default=10, cast=int)
 # ==============================================================================
 # SECURITY SETTINGS - Enhanced for production
 # ==============================================================================
