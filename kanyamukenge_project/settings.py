@@ -1,17 +1,19 @@
 """
 Django settings for kanyamukenge_project project.
-CORRECTED VERSION - Fixes WhiteNoise 500 errors
+PRODUCTION VERSION - Optimized for Render deployment
 
-Key fixes:
-1. WhiteNoise middleware position corrected
-2. Static files configuration simplified
-3. STATICFILES_STORAGE updated for newer Django/WhiteNoise versions
-4. Removed conflicting static file serving
+Key updates for Render:
+1. Production-ready ALLOWED_HOSTS configuration
+2. Database configuration for PostgreSQL on Render
+3. Enhanced security settings for production
+4. Proper CSRF and CORS configuration
+5. Static files optimized for production
 """
 
 import os
 from pathlib import Path
 from decouple import config
+import dj_database_url
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,9 +22,16 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY SETTINGS
 # ==============================================================================
 
-SECRET_KEY = config('SECRET_KEY', default='django-insecure-change-this-in-production')
-DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1', cast=lambda v: [s.strip() for s in v.split(',')])
+SECRET_KEY = config('SECRET_KEY')
+DEBUG = config('DEBUG', default=False, cast=bool)
+
+# ALLOWED_HOSTS - Updated for Render deployment
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=lambda v: [s.strip() for s in v.split(',') if s.strip()])
+
+# Add Render domain pattern if not specified
+if not ALLOWED_HOSTS or ALLOWED_HOSTS == ['']:
+    # Default hosts for development and basic deployment
+    ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
 # ==============================================================================
 # APPLICATION DEFINITION
@@ -44,18 +53,18 @@ LOCAL_APPS = [
 ]
 
 THIRD_PARTY_APPS = [
-    # Ajouter ici d'autres apps tierces si nécessaire
+    # Add third-party apps here if needed
 ]
 
 INSTALLED_APPS = DJANGO_APPS + LOCAL_APPS + THIRD_PARTY_APPS
 
 # ==============================================================================
-# MIDDLEWARE - CRITICAL FIX: WhiteNoise must be after SecurityMiddleware
+# MIDDLEWARE - Optimized for production
 # ==============================================================================
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',  # MOVED: Must be right after SecurityMiddleware
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # Must be after SecurityMiddleware
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -79,7 +88,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'django.template.context_processors.media',  # Pour accéder à MEDIA_URL dans les templates
+                'django.template.context_processors.media',
             ],
         },
     },
@@ -88,19 +97,29 @@ TEMPLATES = [
 WSGI_APPLICATION = 'kanyamukenge_project.wsgi.application'
 
 # ==============================================================================
-# DATABASE
+# DATABASE - Render PostgreSQL configuration
 # ==============================================================================
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': config('DB_NAME', default='kanyamukenge_db'),
-        'USER': config('DB_USER', default='postgres'),
-        'PASSWORD': config('DB_PASSWORD', default=''),
-        'HOST': config('DB_HOST', default='localhost'),
-        'PORT': config('DB_PORT', default='5432'),
+# Use DATABASE_URL for Render (automatically provided)
+DATABASE_URL = config('DATABASE_URL', default=None)
+
+if DATABASE_URL:
+    # Production: Use Render's PostgreSQL database
+    DATABASES = {
+        'default': dj_database_url.parse(DATABASE_URL)
     }
-}
+else:
+    # Development: Use local PostgreSQL
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='kanyamukenge_db'),
+            'USER': config('DB_USER', default='postgres'),
+            'PASSWORD': config('DB_PASSWORD', default=''),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
+    }
 
 # ==============================================================================
 # AUTHENTICATION
@@ -166,7 +185,7 @@ USE_I18N = True
 USE_TZ = True
 
 # ==============================================================================
-# STATIC FILES (CSS, JavaScript, Images) - CRITICAL FIXES
+# STATIC FILES - Optimized for Render deployment
 # ==============================================================================
 
 STATIC_URL = '/static/'
@@ -182,26 +201,25 @@ STATICFILES_FINDERS = [
 ]
 
 # ==============================================================================
-# WHITENOISE CONFIGURATION - CORRECTED
+# WHITENOISE CONFIGURATION - Production optimized
 # ==============================================================================
 
-# For Django 4.2+ with WhiteNoise 6.x, use the new storage backend
 if DEBUG:
-    # In development, don't use compression to avoid issues
+    # Development: Simple storage, no compression
     STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
-    # Allow WhiteNoise to find files during development
     WHITENOISE_USE_FINDERS = True
     WHITENOISE_AUTOREFRESH = True
 else:
-    # In production, use compression for performance
+    # Production: Compressed storage for performance
     STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-    # Production WhiteNoise settings
     WHITENOISE_USE_FINDERS = False
     WHITENOISE_AUTOREFRESH = False
 
-# Additional WhiteNoise settings
-WHITENOISE_MAX_AGE = 31536000 if not DEBUG else 0  # 1 year cache for production, no cache for dev
-WHITENOISE_SKIP_COMPRESS_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'zip', 'gz', 'tgz', 'bz2', 'tbz', 'xz', 'br']
+# WhiteNoise settings for production
+WHITENOISE_MAX_AGE = 31536000 if not DEBUG else 0  # 1 year cache for production
+WHITENOISE_SKIP_COMPRESS_EXTENSIONS = [
+    'jpg', 'jpeg', 'png', 'gif', 'webp', 'zip', 'gz', 'tgz', 'bz2', 'tbz', 'xz', 'br'
+]
 
 # ==============================================================================
 # MEDIA FILES
@@ -225,30 +243,38 @@ DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 SERVER_EMAIL = EMAIL_HOST_USER
 
 # ==============================================================================
-# SECURITY SETTINGS
+# SECURITY SETTINGS - Enhanced for production
 # ==============================================================================
 
-# CSRF Protection
-CSRF_TRUSTED_ORIGINS = [
-    'https://806844162ac6.ngrok-free.app',
-    'http://127.0.0.1:8000',
-    'http://localhost:8000',
-]
+# CSRF Protection - Updated for Render deployment
+CSRF_TRUSTED_ORIGINS = config(
+    'CSRF_TRUSTED_ORIGINS', 
+    default='',
+    cast=lambda v: [s.strip() for s in v.split(',') if s.strip()]
+)
 
+# Production security settings
 if not DEBUG:
-    # Production security settings
+    # Security headers
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = 'strict-origin-when-cross-origin'
     X_FRAME_OPTIONS = 'DENY'
     
-    # These should be enabled carefully in production
-    # SECURE_SSL_REDIRECT = True
+    # Cookie security
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    CSRF_COOKIE_HTTPONLY = True
+    
+    # Enable HTTPS redirect if you have SSL configured
+    # SECURE_SSL_REDIRECT = True  # Uncomment when you have HTTPS
     # SECURE_HSTS_SECONDS = 31536000
     # SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     # SECURE_HSTS_PRELOAD = True
 
 # ==============================================================================
-# LOGGING
+# LOGGING - Enhanced for production
 # ==============================================================================
 
 LOGS_DIR = BASE_DIR / 'logs'
@@ -264,13 +290,13 @@ LOGGING = {
             'style': '{',
         },
         'simple': {
-            'format': '{levelname} {message}',
+            'format': '{levelname} {asctime} {message}',
             'style': '{',
         },
     },
     'handlers': {
         'console': {
-            'level': 'DEBUG' if DEBUG else 'INFO',
+            'level': 'INFO',
             'class': 'logging.StreamHandler',
             'formatter': 'simple',
         },
@@ -278,33 +304,38 @@ LOGGING = {
     'loggers': {
         'accounts': {
             'handlers': ['console'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
+            'level': 'INFO',
             'propagate': False,
         },
         'genealogy': {
             'handlers': ['console'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
+            'level': 'INFO',
             'propagate': False,
         },
         'session': {
             'handlers': ['console'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
+            'level': 'INFO',
             'propagate': False,
         },
         'django.security': {
             'handlers': ['console'],
-            'level': 'DEBUG' if DEBUG else 'INFO',
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'ERROR',
             'propagate': False,
         },
     },
     'root': {
         'handlers': ['console'],
-        'level': 'DEBUG' if DEBUG else 'INFO',
+        'level': 'INFO',
     },
 }
 
-# Add file logging for production
-if not DEBUG:
+# Add file logging for production debugging
+if not DEBUG and os.access(LOGS_DIR, os.W_OK):
     LOGGING['handlers']['file'] = {
         'level': 'INFO',
         'class': 'logging.FileHandler',
@@ -312,10 +343,9 @@ if not DEBUG:
         'formatter': 'verbose',
     }
     
-    # Ajouter le handler file aux loggers
-    LOGGING['loggers']['accounts']['handlers'].append('file')
-    LOGGING['loggers']['genealogy']['handlers'].append('file')
-    LOGGING['loggers']['session']['handlers'].append('file')
+    # Add file handler to loggers
+    for logger in ['accounts', 'genealogy', 'session', 'django.security']:
+        LOGGING['loggers'][logger]['handlers'].append('file')
     
 # ==============================================================================
 # MESSAGE FRAMEWORK
@@ -333,16 +363,32 @@ MESSAGE_TAGS = {
 }
 
 # ==============================================================================
-# CACHE SETTINGS (pour la production)
+# CACHE SETTINGS - Production optimized
 # ==============================================================================
 
 if not DEBUG:
-    CACHES = {
-        'default': {
-            'BACKEND': 'django.core.cache.backends.redis.RedisCache',
-            'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
+    # Use Redis if available, fallback to database cache
+    REDIS_URL = config('REDIS_URL', default=None)
+    if REDIS_URL:
+        CACHES = {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.redis.RedisCache',
+                'LOCATION': REDIS_URL,
+                'OPTIONS': {
+                    'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                },
+                'KEY_PREFIX': 'kanyamukenge',
+                'TIMEOUT': 300,
+            }
         }
-    }
+    else:
+        # Fallback to database cache
+        CACHES = {
+            'default': {
+                'BACKEND': 'django.core.cache.backends.db.DatabaseCache',
+                'LOCATION': 'cache_table',
+            }
+        }
 else:
     CACHES = {
         'default': {
@@ -354,7 +400,7 @@ else:
 # FILE UPLOAD SETTINGS
 # ==============================================================================
 
-# Taille maximale des fichiers uploadés (50MB)
+# File upload limits
 FILE_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 52428800  # 50MB
 
@@ -369,48 +415,25 @@ ADMIN_URL = config('ADMIN_URL', default='admin/')
 # ==============================================================================
 
 if DEBUG:
-    # Shorter timeouts for development testing
-    SESSION_TIMEOUT_SECONDS = config('DEV_SESSION_TIMEOUT_SECONDS', default=1200, cast=int)  # 20 minutes
-    SESSION_WARNING_SECONDS = config('DEV_SESSION_WARNING_SECONDS', default=300, cast=int)   # 5 minutes
+    # Development specific settings
+    SESSION_TIMEOUT_SECONDS = config('DEV_SESSION_TIMEOUT_SECONDS', default=1200, cast=int)
+    SESSION_WARNING_SECONDS = config('DEV_SESSION_WARNING_SECONDS', default=300, cast=int)
     
-    # Enable session security features for testing
     PREVENT_CONCURRENT_SESSIONS = config('DEV_PREVENT_CONCURRENT_SESSIONS', default=False, cast=bool)
-    CHECK_SESSION_IP = config('DEV_CHECK_SESSION_IP', default=False, cast=bool)  # Can cause issues in dev
-    
-    # Django Debug Toolbar (à installer si nécessaire : pip install django-debug-toolbar)
-    try:
-        import debug_toolbar
-        INSTALLED_APPS += ['debug_toolbar']
-        MIDDLEWARE += ['debug_toolbar.middleware.DebugToolbarMiddleware']
-        
-        INTERNAL_IPS = [
-            '127.0.0.1',
-            'localhost',
-        ]
-        
-        DEBUG_TOOLBAR_CONFIG = {
-            'SHOW_TOOLBAR_CALLBACK': lambda request: False,
-        }
-    except ImportError:
-        pass
+    CHECK_SESSION_IP = config('DEV_CHECK_SESSION_IP', default=False, cast=bool)
 
 # ==============================================================================
 # CUSTOM SETTINGS FOR KANYAMUKENGE PROJECT
 # ==============================================================================
 
-# Nom du projet affiché dans les templates
+# Project configuration
 PROJECT_NAME = "Famille KANYAMUKENGE"
-
-# Email de contact pour les invitations
-CONTACT_EMAIL = config('CONTACT_EMAIL', default='admin@kanyamukenge.family')
-
-# URL de base pour les liens dans les emails
+CONTACT_EMAIL = config('CONTACT_EMAIL', default='irengekanyamukenge@gmail.com')
 BASE_URL = config('BASE_URL', default='http://127.0.0.1:8000')
 
-# Durée de validité des invitations (en jours)
+# Application settings
 INVITATION_EXPIRE_DAYS = 7
 
-# Permissions par défaut pour les nouveaux utilisateurs
 DEFAULT_USER_PERMISSIONS = {
     'can_add_children': True,
     'can_modify_own_info': True,
@@ -418,14 +441,12 @@ DEFAULT_USER_PERMISSIONS = {
     'can_export_data': False,
 }
 
-# Niveaux de visibilité des personnes
 PERSON_VISIBILITY_CHOICES = [
     ('public', 'Public'),
     ('family', 'Famille seulement'),
     ('private', 'Privé'),
 ]
 
-# Types de relations parent-enfant
 PARENT_CHILD_RELATIONSHIP_TYPES = [
     ('biological', 'Biologique'),
     ('adopted', 'Adopté'),
@@ -433,14 +454,12 @@ PARENT_CHILD_RELATIONSHIP_TYPES = [
     ('foster', 'Famille Accueil'),
 ]
 
-# Types d'unions/partenariats
 PARTNERSHIP_TYPES = [
     ('marriage', 'Mariage'),
     ('partnership', 'Union libre'),
     ('engagement', 'Fiançailles'),
 ]
 
-# Configuration GEDCOM
 GEDCOM_EXPORT_CONFIG = {
     'charset': 'UTF-8',
     'version': '5.5.1',
