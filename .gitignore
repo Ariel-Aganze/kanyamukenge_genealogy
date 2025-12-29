@@ -52,5 +52,3 @@ Thumbs.db
 # Static files (collected)
 staticfiles/
 static_root/
-
-static/
