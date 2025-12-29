@@ -455,7 +455,7 @@ def send_otp_email(user, token):
         message,
         settings.DEFAULT_FROM_EMAIL,
         [user.email],
-        fail_silently=False,
+        fail_silently=True,
     )
 
 
@@ -535,5 +535,5 @@ def send_welcome_email(user):
         message,
         settings.DEFAULT_FROM_EMAIL,
         [user.email],
-        fail_silently=False,
+        fail_silently=True,
     )
