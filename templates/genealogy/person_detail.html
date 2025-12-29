@@ -1,0 +1,580 @@
+{% extends 'base/dashboard.html' %}
+
+{% block title %}{{ person.get_full_name }} - Famille KANYAMUKENGE{% endblock %}
+{% block page_title %}{{ person.get_full_name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="max-w-6xl mx-auto">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+        <a href="{% url 'genealogy:dashboard' %}" class="hover:text-brand-primary transition">Tableau de bord</a>
+        <i data-feather="chevron-right" class="w-4 h-4"></i>
+        <a href="{% url 'genealogy:search' %}" class="hover:text-brand-primary transition">Recherche</a>
+        <i data-feather="chevron-right" class="w-4 h-4"></i>
+        <span class="text-brand-primary">{{ person.get_full_name }}</span>
+    </nav>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Colonne principale - Informations détaillées -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- Carte principale avec photo et infos essentielles -->
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
+                <div class="relative bg-gradient-to-r from-brand-primary to-green-700 p-6 text-white">
+                    <div class="flex items-start gap-6">
+                        <!-- Photo ou avatar -->
+                        <div class="flex-shrink-0">
+                            {% if person.photo %}
+                                <img src="{{ person.photo.url }}" alt="{{ person.get_full_name }}" 
+                                     class="w-24 h-24 rounded-full object-cover border-4 border-white/20">
+                            {% else %}
+                                <div class="w-24 h-24 rounded-full border-4 border-white/20 flex items-center justify-center bg-white/10 text-3xl font-serif font-bold">
+                                    {{ person.first_name.0 }}{{ person.last_name.0 }}
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Informations principales -->
+                        <div class="flex-1 min-w-0">
+                            <h1 class="font-serif text-2xl font-bold mb-2">{{ person.get_full_name }}</h1>
+                            
+                            <div class="space-y-2 text-green-100">
+                                {% if person.birth_date %}
+                                <p class="flex items-center gap-2">
+                                    <i data-feather="calendar" class="w-4 h-4"></i>
+                                    Né{{ person.gender|yesno:",,e" }} le {{ person.birth_date|date:"d F Y" }}
+                                    {% if person.get_age and not person.is_deceased %}({{ person.get_age }} ans){% endif %}
+                                </p>
+                                {% endif %}
+                                
+                                {% if person.birth_place %}
+                                <p class="flex items-center gap-2">
+                                    <i data-feather="map-pin" class="w-4 h-4"></i>
+                                    à {{ person.birth_place }}
+                                </p>
+                                {% endif %}
+                                
+                                {% if person.is_deceased and person.death_date %}
+                                <p class="flex items-center gap-2">
+                                    <i data-feather="minus-circle" class="w-4 h-4"></i>
+                                    Décédé{{ person.gender|yesno:",,e" }} le {{ person.death_date|date:"d F Y" }}
+                                    {% if person.death_place %}à {{ person.death_place }}{% endif %}
+                                </p>
+                                {% endif %}
+                                
+                                {% if person.profession %}
+                                <p class="flex items-center gap-2">
+                                    <i data-feather="briefcase" class="w-4 h-4"></i>
+                                    {{ person.profession }}
+                                </p>
+                                {% endif %}
+
+                                <!-- NOUVEAU - Affichage des informations tribales et claniques -->
+                                {% if person.tribus or person.clan %}
+                                <div class="mt-3 pt-3 border-t border-green-400/30">
+                                    {% if person.tribus %}
+                                    <p class="flex items-center gap-2">
+                                        <i data-feather="users" class="w-4 h-4"></i>
+                                        Tribu: {{ person.tribus }}
+                                    </p>
+                                    {% endif %}
+                                    {% if person.clan %}
+                                    <p class="flex items-center gap-2">
+                                        <i data-feather="shield" class="w-4 h-4"></i>
+                                        Clan: {{ person.clan }}
+                                    </p>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <!-- Actions rapides -->
+                        {% if can_modify %}
+                        <div class="flex flex-col gap-2">
+                            <a href="{% url 'genealogy:person_edit' person.id %}" 
+                               class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+                                <i data-feather="edit-2" class="w-4 h-4"></i>
+                                Modifier
+                            </a>
+                            <a href="{% url 'genealogy:family_tree_person' person.id %}" 
+                               class="bg-brand-accent hover:bg-amber-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+                                <i data-feather="share-2" class="w-4 h-4"></i>
+                                Voir l'arbre
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Statistiques familiales -->
+                <div class="p-6 bg-stone-50 border-b border-gray-100">
+                    <div class="grid grid-cols-4 gap-4 text-center">
+                        <div>
+                            <div class="text-xl font-serif font-bold text-brand-primary">{{ parents|length }}</div>
+                            <div class="text-xs text-gray-500">Parent{{ parents|length|pluralize }}</div>
+                        </div>
+                        <div>
+                            <div class="text-xl font-serif font-bold text-brand-primary">{{ children|length }}</div>
+                            <div class="text-xs text-gray-500">Enfant{{ children|length|pluralize }}</div>
+                        </div>
+                        <div>
+                            <div class="text-xl font-serif font-bold text-brand-primary">{{ partners|length }}</div>
+                            <div class="text-xs text-gray-500">Conjoint{{ partners|length|pluralize }}</div>
+                        </div>
+                        <div>
+                            <div class="text-xl font-serif font-bold text-brand-primary">{{ siblings|length }}</div>
+                            <div class="text-xs text-gray-500">Frère/Sœur{{ siblings|length|pluralize }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Informations détaillées dans la carte principale -->
+                <div class="p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        <!-- Informations personnelles détaillées -->
+                        <div>
+                            <h3 class="font-serif text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                <i data-feather="user" class="w-5 h-5 text-brand-primary"></i>
+                                Informations personnelles
+                            </h3>
+                            
+                            <div class="space-y-3 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Prénom:</span>
+                                    <span class="font-medium">{{ person.first_name }}</span>
+                                </div>
+                                
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Nom de famille:</span>
+                                    <span class="font-medium">{{ person.last_name }}</span>
+                                </div>
+                                
+                                {% if person.maiden_name %}
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Nom de jeune fille:</span>
+                                    <span class="font-medium">{{ person.maiden_name }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Genre:</span>
+                                    <span class="font-medium">{{ person.get_gender_display }}</span>
+                                </div>
+
+                                <!-- NOUVEAU - Informations tribales et claniques détaillées -->
+                                {% if person.tribus %}
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Tribu:</span>
+                                    <span class="font-medium text-brand-primary">{{ person.tribus }}</span>
+                                </div>
+                                {% endif %}
+
+                                {% if person.clan %}
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Clan:</span>
+                                    <span class="font-medium text-brand-primary">{{ person.clan }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if person.get_age %}
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Âge:</span>
+                                    <span class="font-medium">{{ person.get_age }} ans</span>
+                                </div>
+                                {% endif %}
+                                
+                                <div class="flex justify-between">
+                                    <span class="text-gray-600">Statut:</span>
+                                    <span class="font-medium {% if person.is_deceased %}text-red-600{% else %}text-green-600{% endif %}">
+                                        {% if person.is_deceased %}Décédé{{ person.gender|yesno:",,e" }}{% else %}En vie{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Éducation et profession -->
+                        {% if person.education or person.profession %}
+                        <div>
+                            <h3 class="font-serif text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                                <i data-feather="book" class="w-5 h-5 text-brand-primary"></i>
+                                Éducation et carrière
+                            </h3>
+                            
+                            <div class="space-y-3 text-sm">
+                                {% if person.profession %}
+                                <div>
+                                    <span class="text-gray-600 block mb-1">Profession:</span>
+                                    <span class="font-medium">{{ person.profession }}</span>
+                                </div>
+                                {% endif %}
+                                
+                                {% if person.education %}
+                                <div>
+                                    <span class="text-gray-600 block mb-1">Formation:</span>
+                                    <p class="text-gray-900 leading-relaxed">{{ person.education|linebreaks }}</p>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Biographie -->
+                {% if person.biography %}
+                <div class="p-6 border-t border-gray-100">
+                    <h3 class="font-serif text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                        <i data-feather="book-open" class="w-5 h-5 text-gray-400"></i>
+                        Biographie
+                    </h3>
+                    <div class="text-gray-700 text-sm leading-relaxed">
+                        {{ person.biography|linebreaksbr }}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- Relations familiales -->
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-100">
+                    <h2 class="font-serif text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <i data-feather="users" class="w-6 h-6 text-gray-400"></i>
+                        Relations familiales
+                    </h2>
+                </div>
+                
+                <div class="p-6 space-y-6">
+                    <!-- Parents -->
+                    {% if parents %}
+                    <div>
+                        <h3 class="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <i data-feather="arrow-up" class="w-4 h-4 text-brand-primary"></i>
+                            Parents
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {% for parent in parents %}
+                            <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-brand-primary transition group">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-br 
+                                    {% if parent.gender == 'M' %}from-blue-500 to-blue-600{% elif parent.gender == 'F' %}from-pink-500 to-pink-600{% else %}from-gray-500 to-gray-600{% endif %} 
+                                    flex items-center justify-center text-white font-bold text-sm">
+                                    {{ parent.first_name.0 }}{{ parent.last_name.0 }}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-medium text-gray-900 group-hover:text-brand-primary transition">
+                                        <a href="{% url 'genealogy:person_detail' parent.id %}">{{ parent.get_full_name }}</a>
+                                    </p>
+                                    {% if parent.birth_date %}
+                                    <p class="text-xs text-gray-500">{{ parent.birth_date|date:"Y" }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Conjoints -->
+                    {% if partners %}
+                    <div>
+                        <h3 class="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <i data-feather="heart" class="w-4 h-4 text-brand-accent"></i>
+                            Conjoint{{ partners|length|pluralize }}
+                        </h3>
+                        <div class="space-y-3">
+                            {% for partner in partners %}
+                            <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-brand-primary transition group">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-br 
+                                    {% if partner.gender == 'M' %}from-blue-500 to-blue-600{% elif partner.gender == 'F' %}from-pink-500 to-pink-600{% else %}from-gray-500 to-gray-600{% endif %} 
+                                    flex items-center justify-center text-white font-bold text-sm">
+                                    {{ partner.first_name.0 }}{{ partner.last_name.0 }}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-medium text-gray-900 group-hover:text-brand-primary transition">
+                                        <a href="{% url 'genealogy:person_detail' partner.id %}">{{ partner.get_full_name }}</a>
+                                    </p>
+                                    {% if partner.birth_date %}
+                                    <p class="text-xs text-gray-500">{{ partner.birth_date|date:"Y" }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Enfants -->
+                    {% if children %}
+                    <div>
+                        <h3 class="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <i data-feather="arrow-down" class="w-4 h-4 text-green-600"></i>
+                            Enfants ({{ children|length }})
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {% for child in children %}
+                            <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-brand-primary transition group">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-br 
+                                    {% if child.gender == 'M' %}from-blue-500 to-blue-600{% elif child.gender == 'F' %}from-pink-500 to-pink-600{% else %}from-gray-500 to-gray-600{% endif %} 
+                                    flex items-center justify-center text-white font-bold text-sm">
+                                    {{ child.first_name.0 }}{{ child.last_name.0 }}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-medium text-gray-900 group-hover:text-brand-primary transition">
+                                        <a href="{% url 'genealogy:person_detail' child.id %}">{{ child.get_full_name }}</a>
+                                    </p>
+                                    {% if child.birth_date %}
+                                    <p class="text-xs text-gray-500">
+                                        {{ child.birth_date|date:"Y" }}
+                                        {% if child.get_age %}({{ child.get_age }} ans){% endif %}
+                                    </p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Frères et sœurs -->
+                    {% if siblings %}
+                    <div>
+                        <h3 class="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <i data-feather="users" class="w-4 h-4 text-purple-600"></i>
+                            Frères et sœurs
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {% for sibling in siblings %}
+                            <div class="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-brand-primary transition group">
+                                <div class="w-10 h-10 rounded-full bg-gradient-to-br 
+                                    {% if sibling.gender == 'M' %}from-blue-500 to-blue-600{% elif sibling.gender == 'F' %}from-pink-500 to-pink-600{% else %}from-gray-500 to-gray-600{% endif %} 
+                                    flex items-center justify-center text-white font-bold text-sm">
+                                    {{ sibling.first_name.0 }}{{ sibling.last_name.0 }}
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-medium text-gray-900 group-hover:text-brand-primary transition">
+                                        <a href="{% url 'genealogy:person_detail' sibling.id %}">{{ sibling.get_full_name }}</a>
+                                    </p>
+                                    {% if sibling.birth_date %}
+                                    <p class="text-xs text-gray-500">{{ sibling.birth_date|date:"Y" }}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Aucune relation -->
+                    {% if not parents and not children and not partners and not siblings %}
+                    <div class="text-center py-8 text-gray-500">
+                        <i data-feather="users" class="w-12 h-12 mx-auto mb-3 text-gray-200"></i>
+                        <p class="text-sm">Aucune relation familiale enregistrée</p>
+                        {% if can_modify %}
+                        <p class="text-xs mt-2">
+                            <a href="{% url 'genealogy:add_child' person.id %}" class="text-brand-accent hover:underline">Ajouter des relations</a>
+                        </p>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <!-- Documents et événements -->
+            {% if documents or events %}
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm">
+                <div class="px-6 py-4 border-b border-gray-100">
+                    <h2 class="font-serif text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <i data-feather="folder" class="w-6 h-6 text-gray-400"></i>
+                        Documents et événements
+                    </h2>
+                </div>
+                
+                <div class="p-6">
+                    <!-- Onglets -->
+                    <div class="border-b border-gray-200 mb-6">
+                        <nav class="-mb-px flex space-x-8">
+                            <button onclick="showTab('documents')" id="tab-documents" class="tab-button py-2 px-1 border-b-2 font-medium text-sm active">
+                                Documents ({{ documents|length }})
+                            </button>
+                            <button onclick="showTab('events')" id="tab-events" class="tab-button py-2 px-1 border-b-2 font-medium text-sm">
+                                Événements ({{ events|length }})
+                            </button>
+                        </nav>
+                    </div>
+                    
+                    <!-- Contenu Documents -->
+                    <div id="content-documents" class="tab-content">
+                        {% if documents %}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {% for document in documents %}
+                            <div class="border border-gray-200 rounded-lg p-4 hover:border-brand-primary transition">
+                                <div class="flex items-start gap-3">
+                                    <i data-feather="file-text" class="w-5 h-5 text-brand-accent mt-0.5"></i>
+                                    <div class="flex-1 min-w-0">
+                                        <h4 class="font-medium text-gray-900">{{ document.title }}</h4>
+                                        <p class="text-sm text-gray-500">{{ document.get_document_type_display }}</p>
+                                        <p class="text-xs text-gray-400 mt-1">{{ document.upload_date|date:"d M Y" }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-gray-500 text-center py-4">Aucun document</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Contenu Événements -->
+                    <div id="content-events" class="tab-content hidden">
+                        {% if events %}
+                        <div class="space-y-4">
+                            {% for event in events %}
+                            <div class="border-l-4 border-brand-accent pl-4">
+                                <h4 class="font-medium text-gray-900">{{ event.title }}</h4>
+                                <p class="text-sm text-gray-600">{{ event.get_event_type_display }}</p>
+                                {% if event.date %}
+                                <p class="text-xs text-gray-500">{{ event.date|date:"d F Y" }}</p>
+                                {% endif %}
+                                {% if event.location %}
+                                <p class="text-xs text-gray-500">{{ event.location }}</p>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-gray-500 text-center py-4">Aucun événement</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Sidebar - Actions et propositions -->
+        <div class="lg:col-span-1 space-y-6">
+            
+            <!-- Actions -->
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+                <h3 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="zap" class="w-5 h-5 text-gray-400"></i>
+                    Actions
+                </h3>
+                
+                <div class="space-y-2">
+                    {% if can_modify %}
+                    <a href="{% url 'genealogy:add_child' person.id %}" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
+                        <i data-feather="plus" class="w-4 h-4 text-brand-accent"></i>
+                        Ajouter un enfant
+                    </a>
+                    
+                    <a href="{% url 'genealogy:add_partnership' person.id %}" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
+                        <i data-feather="heart" class="w-4 h-4 text-brand-accent"></i>
+                        Ajouter un conjoint
+                    </a>
+                    {% endif %}
+                    
+                    <a href="{% url 'genealogy:propose_modification' person.id %}" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
+                        <i data-feather="edit-2" class="w-4 h-4 text-brand-accent"></i>
+                        Proposer une modification
+                    </a>
+                    
+                    <a href="{% url 'genealogy:family_tree_person' person.id %}" class="block p-3 rounded-lg hover:bg-gray-50 transition text-sm flex items-center gap-2">
+                        <i data-feather="share-2" class="w-4 h-4 text-brand-accent"></i>
+                        Voir dans l'arbre
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Propositions de modification -->
+            {% if proposals %}
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+                <h3 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="git-pull-request" class="w-5 h-5 text-gray-400"></i>
+                    Propositions
+                </h3>
+                
+                <div class="space-y-3">
+                    {% for proposal in proposals %}
+                    <div class="p-3 rounded-lg border border-gray-200 {% if proposal.status == 'pending' %}bg-yellow-50 border-yellow-200{% elif proposal.status == 'approved' %}bg-green-50 border-green-200{% else %}bg-red-50 border-red-200{% endif %}">
+                        <div class="flex items-center justify-between mb-2">
+                            <p class="text-sm font-medium text-gray-900">{{ proposal.get_field_name_display }}</p>
+                            <span class="text-xs px-2 py-1 rounded-full 
+                                {% if proposal.status == 'pending' %}bg-yellow-100 text-yellow-800{% elif proposal.status == 'approved' %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                                {{ proposal.get_status_display }}
+                            </span>
+                        </div>
+                        <p class="text-xs text-gray-600">Par {{ proposal.proposed_by.get_full_name }}</p>
+                        <p class="text-xs text-gray-500">{{ proposal.created_at|timesince }}</p>
+                        
+                        {% if proposal.status == 'pending' and user.role == 'admin' %}
+                        <div class="mt-2">
+                            <a href="{% url 'genealogy:review_proposal' proposal.id %}" class="text-xs text-brand-accent hover:underline">
+                                Examiner →
+                            </a>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            
+            <!-- Informations techniques -->
+            <div class="bg-gray-50 rounded-xl p-6 text-xs text-gray-500">
+                <h4 class="font-semibold mb-2">Informations système</h4>
+                <div class="space-y-1">
+                    {% if person.created_by %}
+                    <p>Créé par : {{ person.created_by.get_full_name }}</p>
+                    {% endif %}
+                    <p>Créé le : {{ person.created_at|date:"d M Y à H:i" }}</p>
+                    {% if person.updated_at != person.created_at %}
+                    <p>Modifié le : {{ person.updated_at|date:"d M Y à H:i" }}</p>
+                    {% endif %}
+                    <p>Visibilité : {{ person.get_visibility_display }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showTab(tabName) {
+    // Hide all tab contents
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+    });
+    
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.tab-button').forEach(button => {
+        button.classList.remove('active', 'border-brand-primary', 'text-brand-primary');
+        button.classList.add('border-transparent', 'text-gray-500');
+    });
+    
+    // Show selected tab content
+    document.getElementById(`content-${tabName}`).classList.remove('hidden');
+    
+    // Add active class to selected tab button
+    const activeButton = document.getElementById(`tab-${tabName}`);
+    activeButton.classList.add('active', 'border-brand-primary', 'text-brand-primary');
+    activeButton.classList.remove('border-transparent', 'text-gray-500');
+}
+
+// Style pour les onglets actifs
+document.addEventListener('DOMContentLoaded', function() {
+    const activeTab = document.querySelector('.tab-button.active');
+    if (activeTab) {
+        activeTab.classList.add('border-brand-primary', 'text-brand-primary');
+        activeTab.classList.remove('border-transparent', 'text-gray-500');
+    }
+    
+    // Style pour les onglets inactifs
+    document.querySelectorAll('.tab-button:not(.active)').forEach(button => {
+        button.classList.add('border-transparent', 'text-gray-500');
+    });
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,390 @@
+{% extends 'base/dashboard.html' %}
+{% load genealogy_tags %}
+{% block title %}Recherche - Famille KANYAMUKENGE{% endblock %}
+{% block page_title %}Recherche de membres{% endblock %}
+
+{% block dashboard_content %}
+<div class="max-w-6xl mx-auto">
+
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="font-serif text-2xl font-bold text-brand-primary mb-2">Rechercher dans la famille</h1>
+        <p class="text-gray-600">Trouvez rapidement un membre de la famille KANYAMUKENGE</p>
+    </div>
+
+    <!-- Formulaire de recherche -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6 mb-8">
+        <form method="get" class="space-y-6" id="searchForm">
+            <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+                
+                <!-- Recherche textuelle -->
+                <div class="lg:col-span-2">
+                    <label for="{{ form.query.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        <i data-feather="search" class="w-4 h-4 inline mr-1"></i>
+                        Nom ou prénom
+                    </label>
+                    <div class="relative">
+                        {{ form.query }}
+                        <button type="submit" class="absolute inset-y-0 right-0 flex items-center pr-3">
+                            <i data-feather="search" class="w-5 h-5 text-gray-400 hover:text-brand-primary transition"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Genre -->
+                <div>
+                    <label for="{{ form.gender.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        <i data-feather="users" class="w-4 h-4 inline mr-1"></i>
+                        Genre
+                    </label>
+                    {{ form.gender }}
+                </div>
+
+                <!-- Statut -->
+                <div>
+                    <label for="{{ form.is_deceased.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                        <i data-feather="heart" class="w-4 h-4 inline mr-1"></i>
+                        Statut
+                    </label>
+                    {{ form.is_deceased }}
+                </div>
+            </div>
+
+            <!-- Filtres avancés (repliables) -->
+            <div class="border-t border-gray-200 pt-4">
+                <button type="button" onclick="toggleAdvancedFilters()" class="flex items-center gap-2 text-sm text-brand-accent hover:text-brand-primary transition mb-4">
+                    <i data-feather="sliders" class="w-4 h-4"></i>
+                    Filtres avancés
+                    <i data-feather="chevron-down" class="w-4 h-4 transform transition-transform" id="advancedToggle"></i>
+                </button>
+                
+                <div id="advancedFilters" class="hidden">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Année de naissance -->
+                        <div>
+                            <label for="{{ form.birth_year_from.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                <i data-feather="calendar" class="w-4 h-4 inline mr-1"></i>
+                                Année de naissance (de)
+                            </label>
+                            {{ form.birth_year_from }}
+                        </div>
+                        
+                        <div>
+                            <label for="{{ form.birth_year_to.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                <i data-feather="calendar" class="w-4 h-4 inline mr-1"></i>
+                                Année de naissance (à)
+                            </label>
+                            {{ form.birth_year_to }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Boutons d'action -->
+            <div class="flex gap-3">
+                <button type="submit" class="bg-brand-primary text-white px-6 py-2 rounded-lg font-medium hover:bg-green-800 transition flex items-center gap-2">
+                    <i data-feather="search" class="w-4 h-4"></i>
+                    Rechercher
+                </button>
+                
+                <button type="button" onclick="clearSearch()" class="bg-gray-100 text-gray-700 px-6 py-2 rounded-lg font-medium hover:bg-gray-200 transition flex items-center gap-2">
+                    <i data-feather="x" class="w-4 h-4"></i>
+                    Effacer
+                </button>
+                
+                <a href="{% url 'genealogy:person_create' %}" class="bg-brand-accent text-white px-6 py-2 rounded-lg font-medium hover:bg-amber-800 transition flex items-center gap-2 ml-auto">
+                    <i data-feather="plus" class="w-4 h-4"></i>
+                    Ajouter un membre
+                </a>
+            </div>
+        </form>
+    </div>
+
+    <!-- Résultats de recherche -->
+    {% if form.is_bound %}
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
+        <!-- Header des résultats -->
+        <div class="px-6 py-4 border-b border-brand-border bg-stone-50/50">
+            <div class="flex items-center justify-between">
+                <h2 class="font-serif text-lg font-bold text-brand-primary">
+                    Résultats de recherche
+                </h2>
+                <div class="flex items-center gap-4 text-sm text-gray-600">
+                    <span>{{ total_results }} résultat{{ total_results|pluralize }}</span>
+                    {% if people.has_other_pages %}
+                    <span>Page {{ people.number }} sur {{ people.paginator.num_pages }}</span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        {% if people %}
+        <!-- Liste des résultats -->
+        <div class="divide-y divide-gray-100">
+            {% for person in people %}
+            <div class="px-6 py-4 hover:bg-stone-50 transition group">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-4">
+                        <!-- Avatar -->
+                        <div class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-sm
+                            {% if person.gender == 'M' %}bg-blue-500{% elif person.gender == 'F' %}bg-pink-500{% else %}bg-gray-500{% endif %}">
+                            {% if person.photo %}
+                                <img src="{{ person.photo.url }}" alt="{{ person.get_full_name }}" class="w-12 h-12 rounded-full object-cover">
+                            {% else %}
+                                {{ person.first_name.0 }}{{ person.last_name.0 }}
+                            {% endif %}
+                        </div>
+                        
+                        <!-- Informations principales -->
+                        <div>
+                            <h3 class="font-semibold text-gray-900 group-hover:text-brand-primary transition">
+                                <a href="{% url 'genealogy:person_detail' person.id %}">
+                                    {{ person.get_full_name }}
+                                </a>
+                            </h3>
+                            <div class="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                                {% if person.birth_date %}
+                                <span class="flex items-center gap-1">
+                                    <i data-feather="calendar" class="w-3 h-3"></i>
+                                    {{ person.birth_date|date:"Y" }}
+                                    {% if person.get_age %}({{ person.get_age }} ans){% endif %}
+                                </span>
+                                {% endif %}
+                                
+                                {% if person.birth_place %}
+                                <span class="flex items-center gap-1">
+                                    <i data-feather="map-pin" class="w-3 h-3"></i>
+                                    {{ person.birth_place }}
+                                </span>
+                                {% endif %}
+                                
+                                {% if person.profession %}
+                                <span class="flex items-center gap-1">
+                                    <i data-feather="briefcase" class="w-3 h-3"></i>
+                                    {{ person.profession }}
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Actions -->
+                    <div class="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <a href="{% url 'genealogy:person_detail' person.id %}" class="p-2 text-gray-400 hover:text-brand-primary transition" title="Voir détails">
+                            <i data-feather="eye" class="w-4 h-4"></i>
+                        </a>
+                        
+                        <a href="{% url 'genealogy:family_tree_person' person.id %}" class="p-2 text-gray-400 hover:text-brand-accent transition" title="Voir dans l'arbre">
+                            <i data-feather="share-2" class="w-4 h-4"></i>
+                        </a>
+                        
+                        {% if person|can_modify:user %}
+                        <a href="{% url 'genealogy:person_edit' person.id %}" class="p-2 text-gray-400 hover:text-green-600 transition" title="Modifier">
+                            <i data-feather="edit-2" class="w-4 h-4"></i>
+                        </a>
+                        {% endif %}
+                    </div>
+                </div>
+                
+                <!-- Relations familiales -->
+                {% if person.get_parents or person.get_children or person.get_partners %}
+                <div class="mt-3 flex flex-wrap gap-4 text-xs">
+                    {% if person.get_parents %}
+                    <div class="flex items-center gap-1 text-gray-500">
+                        <i data-feather="arrow-up" class="w-3 h-3"></i>
+                        <span>{{ person.get_parents|length }} parent{{ person.get_parents|length|pluralize }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if person.get_children %}
+                    <div class="flex items-center gap-1 text-gray-500">
+                        <i data-feather="arrow-down" class="w-3 h-3"></i>
+                        <span>{{ person.get_children|length }} enfant{{ person.get_children|length|pluralize }}</span>
+                    </div>
+                    {% endif %}
+                    
+                    {% if person.get_partners %}
+                    <div class="flex items-center gap-1 text-gray-500">
+                        <i data-feather="heart" class="w-3 h-3"></i>
+                        <span>{{ person.get_partners|length }} conjoint{{ person.get_partners|length|pluralize }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Pagination -->
+        {% if people.has_other_pages %}
+        <div class="px-6 py-4 border-t border-gray-100 bg-stone-50/50">
+            <nav class="flex items-center justify-between">
+                <div class="flex-1 flex justify-between sm:hidden">
+                    {% if people.has_previous %}
+                        <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ people.previous_page_number }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Précédent
+                        </a>
+                    {% endif %}
+                    {% if people.has_next %}
+                        <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ people.next_page_number }}" class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Suivant
+                        </a>
+                    {% endif %}
+                </div>
+                
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <div>
+                        <p class="text-sm text-gray-700">
+                            Affichage de 
+                            <span class="font-medium">{{ people.start_index }}</span>
+                            à 
+                            <span class="font-medium">{{ people.end_index }}</span>
+                            sur 
+                            <span class="font-medium">{{ total_results }}</span>
+                            résultats
+                        </p>
+                    </div>
+                    <div>
+                        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+                            {% if people.has_previous %}
+                                <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ people.previous_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <i data-feather="chevron-left" class="w-5 h-5"></i>
+                                </a>
+                            {% endif %}
+                            
+                            {% for num in people.paginator.page_range %}
+                                {% if people.number == num %}
+                                    <span class="relative inline-flex items-center px-4 py-2 border border-brand-primary bg-brand-primary text-sm font-medium text-white">
+                                        {{ num }}
+                                    </span>
+                                {% else %}
+                                    <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                        {{ num }}
+                                    </a>
+                                {% endif %}
+                            {% endfor %}
+                            
+                            {% if people.has_next %}
+                                <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ people.next_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                                    <i data-feather="chevron-right" class="w-5 h-5"></i>
+                                </a>
+                            {% endif %}
+                        </nav>
+                    </div>
+                </div>
+            </nav>
+        </div>
+        {% endif %}
+        
+        {% else %}
+        <!-- Aucun résultat -->
+        <div class="px-6 py-12 text-center">
+            <i data-feather="search" class="w-16 h-16 mx-auto text-gray-200 mb-4"></i>
+            <h3 class="font-serif text-lg font-semibold text-gray-900 mb-2">Aucun résultat trouvé</h3>
+            <p class="text-gray-500 mb-6">
+                Essayez de modifier vos critères de recherche ou d'ajouter cette personne à l'arbre familial.
+            </p>
+            <div class="flex justify-center gap-3">
+                <button onclick="clearSearch()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm hover:bg-gray-200 transition">
+                    Effacer les filtres
+                </button>
+                <a href="{% url 'genealogy:person_create' %}" class="bg-brand-primary text-white px-4 py-2 rounded-lg text-sm hover:bg-green-800 transition">
+                    Ajouter un membre
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <!-- État initial - suggestions -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm p-8 text-center">
+        <i data-feather="search" class="w-16 h-16 mx-auto text-brand-primary/30 mb-4"></i>
+        <h3 class="font-serif text-xl font-bold text-gray-900 mb-2">Recherchez un membre de la famille</h3>
+        <p class="text-gray-600 mb-6">
+            Utilisez le formulaire ci-dessus pour trouver rapidement une personne dans l'arbre généalogique.
+        </p>
+        
+        <!-- Suggestions de recherche rapide -->
+        <div class="flex flex-wrap justify-center gap-2">
+            <button onclick="quickSearch('homme')" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-full text-sm hover:bg-blue-100 transition">
+                Tous les hommes
+            </button>
+            <button onclick="quickSearch('femme')" class="px-4 py-2 bg-pink-50 text-pink-700 rounded-full text-sm hover:bg-pink-100 transition">
+                Toutes les femmes
+            </button>
+            <button onclick="quickSearch('vivant')" class="px-4 py-2 bg-green-50 text-green-700 rounded-full text-sm hover:bg-green-100 transition">
+                Personnes vivantes
+            </button>
+            <button onclick="quickSearch('decede')" class="px-4 py-2 bg-gray-50 text-gray-700 rounded-full text-sm hover:bg-gray-100 transition">
+                Personnes décédées
+            </button>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+function toggleAdvancedFilters() {
+    const filters = document.getElementById('advancedFilters');
+    const toggle = document.getElementById('advancedToggle');
+    
+    if (filters.classList.contains('hidden')) {
+        filters.classList.remove('hidden');
+        toggle.style.transform = 'rotate(180deg)';
+    } else {
+        filters.classList.add('hidden');
+        toggle.style.transform = 'rotate(0deg)';
+    }
+}
+
+function clearSearch() {
+    const form = document.getElementById('searchForm');
+    const inputs = form.querySelectorAll('input, select');
+    
+    inputs.forEach(input => {
+        if (input.type === 'text' || input.type === 'number') {
+            input.value = '';
+        } else if (input.tagName === 'SELECT') {
+            input.selectedIndex = 0;
+        }
+    });
+    
+    // Optionnel: soumettre automatiquement pour effacer les résultats
+    // form.submit();
+}
+
+function quickSearch(type) {
+    const form = document.getElementById('searchForm');
+    
+    // Reset form
+    clearSearch();
+    
+    // Apply quick filter
+    switch(type) {
+        case 'homme':
+            document.getElementById('{{ form.gender.id_for_label }}').value = 'M';
+            break;
+        case 'femme':
+            document.getElementById('{{ form.gender.id_for_label }}').value = 'F';
+            break;
+        case 'vivant':
+            document.getElementById('{{ form.is_deceased.id_for_label }}').value = 'False';
+            break;
+        case 'decede':
+            document.getElementById('{{ form.is_deceased.id_for_label }}').value = 'True';
+            break;
+    }
+    
+    form.submit();
+}
+
+// Auto-submit on Enter in search field
+document.getElementById('{{ form.query.id_for_label }}').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        document.getElementById('searchForm').submit();
+    }
+});
+</script>
+
+{% endblock %}

@@ -1,0 +1,594 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Famille KANYAMUKENGE - Arbre Généalogique{% endblock %}
+
+{% load static %}
+
+{% block content %}
+
+<!-- HERO SECTION AVEC SLIDESHOW D'IMAGES DE FOND -->
+<!-- HERO SECTION AVEC SLIDESHOW D'IMAGES DE FOND -->
+<header class="relative py-24 md:py-40 px-4 flex flex-col items-center text-center bg-stone-900 overflow-hidden">
+
+    <div class="absolute bottom-16 left-1/2 -translate-x-1/2 z-20 flex gap-2">
+    {% for i in "0123456" %}
+    <div class="slideshow-indicator w-2 h-2 bg-white/50 rounded-full cursor-pointer"></div>
+    {% endfor %}
+    </div>
+
+    <!-- 1. SLIDESHOW (Z-0 : tout au fond) -->
+    <div class="absolute inset-0 z-0">
+        <div class="slideshow-container h-full w-full">
+            <div class="slide active">
+                <img src="{% static 'images/fam1.jpeg' %}" class="w-full h-full object-cover" alt="">
+            </div>
+            <div class="slide">
+                <img src="{% static 'images/fam2.jpeg' %}" class="w-full h-full object-cover" alt="">
+            </div>
+            <div class="slide">
+                <img src="{% static 'images/fam3.jpeg' %}" class="w-full h-full object-cover" alt="">
+            </div>
+            <div class="slide">
+                <img src="{% static 'images/fam4.jpeg' %}" class="w-full h-full object-cover" alt="">
+            </div>
+            <div class="slide">
+                <img src="{% static 'images/fam5.JPG' %}" class="w-full h-full object-cover" alt="">
+            </div>
+            <div class="slide">
+                <img src="{% static 'images/fam6.JPG' %}" class="w-full h-full object-cover" alt="">
+            </div>
+            <div class="slide">
+                <img src="{% static 'images/fam7.jpeg' %}" class="w-full h-full object-cover" alt="">
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. OVERLAY STATIQUE SOMBRE (Z-10) -->
+    <!-- ✅ 35% opacity, ne bouge PAS -->
+    <div class="absolute inset-0 z-10 bg-black/35"></div>
+
+    <!-- (OPTIONNEL) léger gradient pour élégance -->
+    <div class="absolute inset-0 z-10 bg-gradient-to-t from-black/60 via-black/20 to-black/40"></div>
+
+    <!-- 3. CONTENU (Z-20 : toujours au-dessus) -->
+    <div class="relative z-20 max-w-4xl mx-auto mt-8">
+
+        <h1 class="font-serif text-4xl md:text-6xl lg:text-7xl font-bold text-white mb-6 drop-shadow-2xl animate-fade-in-up">
+            Famille KANYAMUKENGE
+        </h1>
+
+        <div class="flex items-center justify-center gap-3 mb-8 animate-fade-in-up animation-delay-300">
+            <div class="h-px w-12 bg-brand-secondary"></div>
+            <p class="text-lg md:text-2xl text-white/90 font-light italic tracking-wide">
+                "Préserver notre histoire, connecter les générations."
+            </p>
+            <div class="h-px w-12 bg-brand-secondary"></div>
+        </div>
+
+        <p class="text-xl md:text-3xl text-white/90 font-serif mb-8 animate-fade-in-up animation-delay-400">
+            Karibu kwa Jamaa
+        </p>
+
+        <div class="flex flex-col sm:flex-row justify-center gap-5 mt-10 animate-fade-in-up animation-delay-600">
+
+            <a href="{% if user.is_authenticated %}{% url 'genealogy:family_tree' %}{% else %}{% url 'accounts:login' %}{% endif %}"
+               class="bg-white text-brand-primary px-8 py-4 rounded-full font-bold shadow-xl hover:bg-brand-secondary hover:text-white transition transform hover:scale-105">
+                Accéder à l'arbre
+            </a>
+
+            <a href="#about"
+               class="border border-white/50 text-white px-8 py-4 rounded-full hover:bg-white/10 backdrop-blur-sm transition transform hover:scale-105">
+                Découvrir notre histoire
+            </a>
+
+            <a href="{% url 'genealogy:public_tree' %}"
+               class="border border-amber-400/50 bg-amber-500/20 text-white px-8 py-4 rounded-full hover:bg-amber-500/30 transition transform hover:scale-105">
+                Voir l'arbre public
+            </a>
+        </div>
+    </div>
+
+    <!-- INDICATEUR SCROLL -->
+    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 z-20 animate-bounce text-white/70">
+        <i data-feather="chevron-down" class="w-8 h-8"></i>
+    </div>
+
+</header>
+
+
+<!-- POURQUOI CE SYSTÈME -->
+<section id="about" class="py-16 px-4 bg-white">
+    <div class="max-w-3xl mx-auto text-center">
+        <h2 class="font-serif text-3xl font-bold text-brand-primary mb-6">Pourquoi cette initiative ?</h2>
+        <p class="text-gray-600 leading-relaxed mb-6">
+            Le temps passe et les souvenirs s'estompent. Les récits de nos aînés, les visages de nos ancêtres et les liens qui nous unissent risquent de se perdre. 
+        </p>
+        <p class="text-gray-600 leading-relaxed">
+            Cette plateforme a été créée humblement pour contrer l'oubli. Elle n'est pas un réseau social, mais un coffre-fort numérique pour notre héritage commun.
+        </p>
+    </div>
+</section>
+
+<!-- STATISTIQUES FAMILIALES -->
+{% if total_people > 0 %}
+<section class="py-16 px-4 bg-stone-50">
+    <div class="max-w-4xl mx-auto text-center">
+        <h2 class="font-serif text-3xl font-bold text-brand-primary mb-12">Notre famille en chiffres</h2>
+        
+        <div class="grid md:grid-cols-3 gap-8">
+            <div class="bg-white p-8 rounded-xl shadow-sm border border-stone-100 hover:shadow-md transition duration-300 group">
+                <div class="w-12 h-12 bg-brand-primary/10 rounded-lg flex items-center justify-center mx-auto mb-4 group-hover:bg-brand-primary/20 transition-colors">
+                    <i data-feather="users" class="w-6 h-6 text-brand-primary"></i>
+                </div>
+                <div class="text-4xl font-serif font-bold text-brand-primary mb-2">{{ total_people }}</div>
+                <p class="text-gray-600 font-medium">Membres recensés</p>
+            </div>
+            
+            <div class="bg-white p-8 rounded-xl shadow-sm border border-stone-100 hover:shadow-md transition duration-300 group">
+                <div class="w-12 h-12 bg-brand-accent/10 rounded-lg flex items-center justify-center mx-auto mb-4 group-hover:bg-brand-accent/20 transition-colors">
+                    <i data-feather="git-merge" class="w-6 h-6 text-brand-accent"></i>
+                </div>
+                <div class="text-4xl font-serif font-bold text-brand-primary mb-2">
+                    {% if generations.oldest_birth and generations.newest_birth %}
+                        {{ generations.newest_birth.year|add:'-'|add:generations.oldest_birth.year|floatformat:0 }}
+                    {% else %}
+                        5
+                    {% endif %}
+                </div>
+                <p class="text-gray-600 font-medium">Générations</p>
+                {% if generations.oldest_birth %}
+                <p class="text-xs text-gray-400 mt-1">La plus ancienne : {{ generations.oldest_birth.year }}</p>
+                {% endif %}
+            </div>
+            
+            <div class="bg-white p-8 rounded-xl shadow-sm border border-stone-100 hover:shadow-md transition duration-300 group">
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center mx-auto mb-4 group-hover:bg-green-200 transition-colors">
+                    <i data-feather="eye" class="w-6 h-6 text-green-600"></i>
+                </div>
+                <div class="text-4xl font-serif font-bold text-brand-primary mb-2">{{ public_people|length }}</div>
+                <p class="text-gray-600 font-medium">Profils publics</p>
+                <a href="{% url 'genealogy:public_tree' %}" class="text-xs text-green-600 hover:text-green-800 font-medium mt-1 block">Voir l'arbre public →</a>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<!-- VISION & VALEURS -->
+<section class="py-16 px-4 bg-brand-primary text-white">
+    <div class="max-w-5xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+        <div>
+            <h2 class="font-serif text-3xl font-bold mb-6">Notre vision familiale</h2>
+            <div class="space-y-6">
+                <div class="flex gap-4 animate-slide-in-right animation-delay-200">
+                    <div class="w-12 h-12 bg-brand-secondary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <i data-feather="anchor" class="text-brand-secondary w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-serif text-xl mb-1">Transmission</h3>
+                        <p class="text-green-100 text-sm font-light">Offrir aux futures générations une compréhension claire de leurs origines.</p>
+                    </div>
+                </div>
+                <div class="flex gap-4 animate-slide-in-right animation-delay-400">
+                    <div class="w-12 h-12 bg-brand-secondary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <i data-feather="heart" class="text-brand-secondary w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-serif text-xl mb-1">Unité</h3>
+                        <p class="text-green-100 text-sm font-light">Resserrer les liens entre les cousins éloignés et la diaspora.</p>
+                    </div>
+                </div>
+                <div class="flex gap-4 animate-slide-in-right animation-delay-600">
+                    <div class="w-12 h-12 bg-brand-secondary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <i data-feather="book-open" class="text-brand-secondary w-6 h-6"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-serif text-xl mb-1">Respect des ancêtres</h3>
+                        <p class="text-green-100 text-sm font-light">Honorer la mémoire de ceux qui ont tracé le chemin avant nous.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Illustration visuelle avec image de fond -->
+        <div class="relative rounded-2xl overflow-hidden min-h-[300px] animate-fade-in animation-delay-800">
+            <!-- Background image -->
+            <div class="absolute inset-0">
+                <img src="{% static 'images/fam3.jpeg' %}" alt="Famille KANYAMUKENGE" class="w-full h-full object-cover">
+            </div>
+            
+            <!-- Subtle dark overlay for readability -->
+            <div class="absolute inset-0 bg-black/40"></div>
+            <div class="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-black/20"></div>
+            
+            <!-- Content -->
+            <div class="relative z-10 p-8 flex items-center justify-center h-full">
+                <div class="text-center">
+                    <p class="font-serif italic text-white text-lg md:text-xl font-medium drop-shadow-lg">
+                        "Eka lya buntu bukitwe ni obukundwa."
+                    </p>
+                    <p class="font-serif text-white text-lg md:text-xl font-medium drop-shadow-lg">
+                        Mushamuka KANY n'o  mukazi NYAWEZA
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- FONCTIONNALITÉS (CARDS) -->
+<section class="py-20 px-4 max-w-7xl mx-auto">
+    <div class="text-center mb-16">
+        <h2 class="font-serif text-3xl font-bold text-brand-primary">Ce que propose la plateforme</h2>
+        <p class="text-gray-600 mt-4 max-w-2xl mx-auto">
+            Un ensemble d'outils pensés pour préserver et enrichir l'histoire de notre famille
+        </p>
+    </div>
+    
+    <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- Card 1 -->
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-stone-100 hover:shadow-md transition duration-300 group animate-fade-in-up animation-delay-200">
+            <div class="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-4 text-brand-secondary group-hover:bg-brand-secondary group-hover:text-white transition duration-300">
+                <i data-feather="git-merge"></i>
+            </div>
+            <h3 class="font-serif text-lg font-bold mb-2">Explorer l'arbre</h3>
+            <p class="text-sm text-gray-500">Naviguez visuellement à travers les générations et comprenez les liens de parenté.</p>
+        </div>
+
+        <!-- Card 2 -->
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-stone-100 hover:shadow-md transition duration-300 group animate-fade-in-up animation-delay-400">
+            <div class="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-4 text-brand-secondary group-hover:bg-brand-secondary group-hover:text-white transition duration-300">
+                <i data-feather="edit-2"></i>
+            </div>
+            <h3 class="font-serif text-lg font-bold mb-2">Enregistrer sa lignée</h3>
+            <p class="text-sm text-gray-500">Ajoutez vos enfants et mettez à jour les informations de votre branche familiale.</p>
+        </div>
+
+        <!-- Card 3 -->
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-stone-100 hover:shadow-md transition duration-300 group animate-fade-in-up animation-delay-600">
+            <div class="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-4 text-brand-secondary group-hover:bg-brand-secondary group-hover:text-white transition duration-300">
+                <i data-feather="shield"></i>
+            </div>
+            <h3 class="font-serif text-lg font-bold mb-2">Confidentialité</h3>
+            <p class="text-sm text-gray-500">Un espace sécurisé. Vos données ne sont visibles que par les membres validés.</p>
+        </div>
+
+        <!-- Card 4: Updated to mention public view -->
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-stone-100 hover:shadow-md transition duration-300 group animate-fade-in-up animation-delay-800">
+            <div class="w-12 h-12 bg-stone-100 rounded-full flex items-center justify-center mb-4 text-brand-secondary group-hover:bg-brand-secondary group-hover:text-white transition duration-300">
+                <i data-feather="eye"></i>
+            </div>
+            <h3 class="font-serif text-lg font-bold mb-2">Vue publique</h3>
+            <p class="text-sm text-gray-500">Explorez l'arbre familial public sans inscription. Connectez-vous pour plus de détails.</p>
+        </div>
+    </div>
+</section>
+
+<!-- COMMENT ÇA FONCTIONNE -->
+<section class="py-16 px-4 bg-stone-100">
+    <div class="max-w-4xl mx-auto">
+        <h2 class="font-serif text-3xl font-bold text-brand-primary text-center mb-12">Comment rejoindre l'arbre ?</h2>
+        
+        <div class="space-y-8 md:space-y-0 md:grid md:grid-cols-4 md:gap-4 text-center">
+            <div class="relative animate-fade-in-up animation-delay-200">
+                <div class="w-12 h-12 mx-auto bg-brand-primary text-white rounded-full flex items-center justify-center font-bold mb-4 z-10 relative">1</div>
+                <p class="font-medium text-gray-800 mb-1">Demande</p>
+                <p class="text-sm text-gray-500">Contactez l'admin</p>
+                <!-- Connecteur visuel desktop -->
+                <div class="hidden md:block absolute top-6 left-1/2 w-full h-0.5 bg-gray-300 -z-0"></div>
+            </div>
+            <div class="relative animate-fade-in-up animation-delay-400">
+                <div class="w-12 h-12 mx-auto bg-brand-primary text-white rounded-full flex items-center justify-center font-bold mb-4 z-10 relative">2</div>
+                <p class="font-medium text-gray-800 mb-1">Vérification</p>
+                <p class="text-sm text-gray-500">Validation familiale</p>
+                <div class="hidden md:block absolute top-6 left-1/2 w-full h-0.5 bg-gray-300 -z-0"></div>
+            </div>
+            <div class="relative animate-fade-in-up animation-delay-600">
+                <div class="w-12 h-12 mx-auto bg-brand-primary text-white rounded-full flex items-center justify-center font-bold mb-4 z-10 relative">3</div>
+                <p class="font-medium text-gray-800 mb-1">Connexion</p>
+                <p class="text-sm text-gray-500">Accès sécurisé</p>
+                <div class="hidden md:block absolute top-6 left-1/2 w-full h-0.5 bg-gray-300 -z-0"></div>
+            </div>
+            <div class="relative animate-fade-in-up animation-delay-800">
+                <div class="w-12 h-12 mx-auto bg-brand-primary text-white rounded-full flex items-center justify-center font-bold mb-4 z-10 relative">4</div>
+                <p class="font-medium text-gray-800 mb-1">Contribution</p>
+                <p class="text-sm text-gray-500">Enrichissez l'histoire</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- SECTION CONFIDENTIALITÉ -->
+<section class="py-16 px-4">
+    <div class="max-w-4xl mx-auto bg-white border-l-4 border-brand-secondary rounded-r-xl shadow-lg p-8 md:p-12 flex flex-col md:flex-row gap-8 items-start animate-slide-in-left">
+        <div class="shrink-0 bg-stone-100 p-4 rounded-full">
+            <i data-feather="lock" class="text-brand-text w-8 h-8"></i>
+        </div>
+        <div>
+            <h3 class="font-serif text-2xl font-bold text-brand-primary mb-2">Un espace strictement privé</h3>
+            <p class="text-gray-600 mb-4">
+                La famille KANYAMUKENGE s'engage à ce que les données présentes sur cette plateforme ne soient jamais utilisées à des fins commerciales.
+            </p>
+            <ul class="text-sm text-gray-500 space-y-2">
+                <li class="flex items-center gap-2"><i data-feather="check" class="w-4 h-4 text-green-600"></i> Accès par invitation uniquement</li>
+                <li class="flex items-center gap-2"><i data-feather="check" class="w-4 h-4 text-green-600"></i> Données hébergées en sécurité</li>
+                <li class="flex items-center gap-2"><i data-feather="check" class="w-4 h-4 text-green-600"></i> Droit de modification et de retrait personnel</li>
+                <li class="flex items-center gap-2"><i data-feather="check" class="w-4 h-4 text-green-600"></i> Aucune exploitation commerciale</li>
+            </ul>
+            <p class="text-xs text-gray-400 mt-4">
+                <i data-feather="info" class="w-3 h-3 inline mr-1"></i>
+                Un <a href="{% url 'genealogy:public_tree' %}" class="text-brand-primary hover:underline">aperçu public</a> limité est disponible pour découvrir l'arbre sans inscription.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- VISION LONG TERME & CTA -->
+<section class="py-20 px-4 text-center bg-brand-primary/5">
+    <div class="max-w-2xl mx-auto">
+        <h2 class="font-serif text-3xl font-bold text-brand-primary mb-4">Un héritage numérique pour l'avenir</h2>
+        <p class="text-gray-600 mb-10">
+            Cette plateforme s'adresse à tous les membres de la famille, des aînés gardiens de la mémoire aux plus jeunes qui portent l'avenir. Ensemble, construisons l'histoire de demain.
+        </p>
+        
+        <div class="flex flex-col sm:flex-row justify-center gap-4">
+            <a href="{% url 'accounts:login' %}" class="group bg-brand-primary text-white px-8 py-4 rounded-full font-medium hover:bg-green-800 transition shadow-lg w-full sm:w-auto inline-flex items-center justify-center gap-2 transform hover:scale-105">
+                <i data-feather="log-in" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+                Se connecter à l'espace membre
+            </a>
+            <a href="{% url 'genealogy:public_tree' %}" class="group bg-amber-600 text-white px-8 py-4 rounded-full font-medium hover:bg-amber-700 transition shadow-lg w-full sm:w-auto inline-flex items-center justify-center gap-2 transform hover:scale-105">
+                <i data-feather="eye" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+                Découvrir l'arbre public
+            </a>
+            <a href="mailto:admin@kanyamukenge.family" class="group bg-transparent border border-gray-400 text-gray-700 px-8 py-4 rounded-full font-medium hover:bg-white transition w-full sm:w-auto inline-flex items-center justify-center gap-2 transform hover:scale-105">
+                <i data-feather="mail" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+                Contacter l'administrateur
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Custom CSS for animations and slideshow -->
+<style>
+/* White Navbar Override */
+.navbar, nav, header nav {
+    background-color: white !important;
+    border-bottom: 1px solid #e5e7eb;
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+}
+
+.navbar a, nav a, header nav a {
+    color: #1f2937 !important;
+}
+
+.navbar a:hover, nav a:hover, header nav a:hover {
+    color: #065f46 !important;
+}
+
+/* Slideshow Styles */
+.slideshow-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.slide {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 1.5s ease-in-out;
+    z-index: 1;
+}
+
+.slide.active {
+    opacity: 1;
+    z-index: 2;
+}
+
+.slide img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s ease-in-out;
+}
+
+/* Slideshow indicators */
+.slideshow-indicator {
+    transition: all 0.3s ease;
+}
+
+.slideshow-indicator.active {
+    opacity: 1 !important;
+    transform: scale(1.2);
+}
+
+.slideshow-indicator:hover {
+    opacity: 0.8 !important;
+}
+
+/* Ken Burns effect - subtle zoom on images */
+.slide.active img {
+    animation: kenBurns 8s ease-in-out;
+}
+
+@keyframes kenBurns {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+/* Existing animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes slideInLeft {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes scaleX {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+}
+
+@keyframes float-slow {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+}
+
+@keyframes float-medium {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-7px); }
+}
+
+@keyframes float-fast {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-5px); }
+}
+
+.animate-fade-in-up {
+    animation: fadeInUp 0.8s ease-out;
+}
+
+.animate-fade-in {
+    animation: fadeIn 1s ease-out;
+}
+
+.animate-slide-in-right {
+    animation: slideInRight 0.8s ease-out;
+}
+
+.animate-slide-in-left {
+    animation: slideInLeft 0.8s ease-out;
+}
+
+.animate-scale-x {
+    animation: scaleX 0.8s ease-out;
+    transform-origin: left;
+}
+
+.animate-float-slow {
+    animation: float-slow 4s ease-in-out infinite;
+}
+
+.animate-float-medium {
+    animation: float-medium 3s ease-in-out infinite;
+}
+
+.animate-float-fast {
+    animation: float-fast 2s ease-in-out infinite;
+}
+
+.animation-delay-200 { animation-delay: 0.2s; }
+.animation-delay-300 { animation-delay: 0.3s; }
+.animation-delay-400 { animation-delay: 0.4s; }
+.animation-delay-500 { animation-delay: 0.5s; }
+.animation-delay-600 { animation-delay: 0.6s; }
+.animation-delay-800 { animation-delay: 0.8s; }
+
+/* Smooth scroll behavior */
+html {
+    scroll-behavior: smooth;
+}
+</style>
+
+<!-- JavaScript for slideshow functionality -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const slides = document.querySelectorAll('.slide');
+    const indicators = document.querySelectorAll('.slideshow-indicator');
+    let currentSlide = 0;
+    let slideshowInterval;
+
+    // Initialize slideshow
+    function initSlideshow() {
+        // Start automatic slideshow
+        slideshowInterval = setInterval(nextSlide, 5000); // Change every 5 seconds
+    }
+
+    // Go to next slide
+    function nextSlide() {
+        slides[currentSlide].classList.remove('active');
+        indicators[currentSlide].classList.remove('active');
+        
+        currentSlide = (currentSlide + 1) % slides.length;
+        
+        slides[currentSlide].classList.add('active');
+        indicators[currentSlide].classList.add('active');
+    }
+
+    // Go to specific slide
+    function goToSlide(slideIndex) {
+        slides[currentSlide].classList.remove('active');
+        indicators[currentSlide].classList.remove('active');
+        
+        currentSlide = slideIndex;
+        
+        slides[currentSlide].classList.add('active');
+        indicators[currentSlide].classList.add('active');
+
+        // Reset interval when manually changing slides
+        clearInterval(slideshowInterval);
+        slideshowInterval = setInterval(nextSlide, 5000);
+    }
+
+    // Add click event listeners to indicators
+    indicators.forEach((indicator, index) => {
+        indicator.addEventListener('click', () => {
+            goToSlide(index);
+        });
+    });
+
+    // Pause slideshow on hover (optional)
+    const heroSection = document.querySelector('header');
+    heroSection.addEventListener('mouseenter', () => {
+        clearInterval(slideshowInterval);
+    });
+
+    heroSection.addEventListener('mouseleave', () => {
+        slideshowInterval = setInterval(nextSlide, 5000);
+    });
+
+    // Start the slideshow
+    initSlideshow();
+
+    // Initialize Feather icons if available
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+});
+</script>
+
+{% endblock %}

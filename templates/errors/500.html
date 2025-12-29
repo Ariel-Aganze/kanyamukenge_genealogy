@@ -1,0 +1,54 @@
+{% extends "errors/base.html" %}
+
+{% block title %}Erreur serveur - Famille KANYAMUKENGE{% endblock %}
+
+{% block error_icon %}
+<div class="mx-auto w-24 h-24 bg-orange-100 rounded-full flex items-center justify-center mb-6">
+    <i data-feather="server" class="w-12 h-12 text-orange-600"></i>
+</div>
+{% endblock %}
+
+{% block action_buttons %}
+<!-- <button onclick="location.reload()" class="pulse-button group bg-brand-primary text-white px-8 py-4 rounded-full font-medium hover:bg-green-800 transition shadow-lg w-full md:w-auto inline-flex items-center justify-center gap-2">
+    <i data-feather="refresh-cw" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+    Actualiser la page
+</button> -->
+
+<a href="/" class="pulse-button group bg-gray-600 text-white px-8 py-4 rounded-full font-medium hover:bg-gray-700 transition shadow-lg w-full md:w-auto inline-flex items-center justify-center gap-2">
+    <i data-feather="home" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+    Retour à l'accueil
+</a>
+
+<!-- <a href="mailto:admin@kanyamukenge.family?subject=Erreur%20500%20sur%20{{ request_path|urlencode }}" class="pulse-button group bg-brand-accent text-white px-8 py-4 rounded-full font-medium hover:bg-amber-800 transition shadow-lg w-full md:w-auto inline-flex items-center justify-center gap-2">
+    <i data-feather="mail" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+    Signaler l'erreur
+</a> -->
+{% endblock %}
+
+{% block extra_scripts %}
+{{ block.super }}
+<script>
+// Track server errors for monitoring
+console.error('500 Server Error:', {
+    path: '{{ request_path|escapejs }}',
+    timestamp: new Date().toISOString(),
+    user: '{{ user.username|default:"anonymous"|escapejs }}',
+    userAgent: navigator.userAgent
+});
+
+// Auto-retry after 30 seconds (optional)
+let retryTimer;
+function startRetryTimer() {
+    retryTimer = setTimeout(() => {
+        if (confirm('Voulez-vous réessayer de charger la page ?')) {
+            location.reload();
+        } else {
+            startRetryTimer();
+        }
+    }, 30000);
+}
+
+// Uncomment to enable auto-retry
+// startRetryTimer();
+</script>
+{% endblock %}

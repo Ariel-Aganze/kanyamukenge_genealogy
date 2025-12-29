@@ -1,0 +1,311 @@
+{% extends 'base/dashboard.html' %}
+
+{% block title %}Tableau de Bord - Famille KANYAMUKENGE{% endblock %}
+{% block page_title %}Tableau de Bord{% endblock %}
+
+{% block proposal_count %}{{ pending_proposals|length }}{% endblock %}
+
+{% block dashboard_content %}
+
+<!-- Section : STATISTIQUES (Non commerciales) -->
+<div class="max-w-6xl mx-auto mb-10">
+    <div class="flex flex-col md:flex-row justify-between items-end mb-6">
+        <div>
+            <h3 class="font-serif text-2xl md:text-3xl font-bold text-brand-primary">Bienvenue, {{ user.first_name|default:user.username }}.</h3>
+            <p class="text-gray-500 mt-1">Voici l'état actuel du registre familial KANYAMUKENGE.</p>
+        </div>
+        <a href="{% url 'genealogy:person_create' %}" class="mt-4 md:mt-0 bg-brand-accent hover:bg-amber-800 text-white px-5 py-2.5 rounded-full flex items-center gap-2 shadow-sm transition text-sm font-medium">
+            <i data-feather="plus-circle" class="w-4 h-4"></i>
+            Inscrire un membre
+        </a>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <!-- Stat Card 1: Total Members -->
+        <div class="bg-white p-6 rounded-xl border border-brand-border shadow-sm flex items-start gap-4 hover:shadow-md transition duration-300">
+            <div class="p-3 bg-green-50 rounded-full text-brand-primary">
+                <i data-feather="users" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 font-medium">Membres recensés</p>
+                <p class="text-3xl font-serif font-bold text-gray-800 mt-1">{{ total_people }}</p>
+                <p class="text-xs text-green-600 mt-1">
+                    <i data-feather="trending-up" class="w-3 h-3 inline"></i>
+                    +{{ user_people_count }} par vous
+                </p>
+            </div>
+        </div>
+        
+        <!-- Stat Card 2: Generations - FIXED -->
+        <div class="bg-white p-6 rounded-xl border border-brand-border shadow-sm flex items-start gap-4 hover:shadow-md transition duration-300">
+            <div class="p-3 bg-amber-50 rounded-full text-brand-accent">
+                <i data-feather="git-merge" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 font-medium">Générations</p>
+                <!-- FIXED: Display actual calculated generations -->
+                <p class="text-3xl font-serif font-bold text-gray-800 mt-1">{{ total_generations|default:"1" }}</p>
+                <!-- FIXED: Show oldest birth year if available -->
+                {% if generations.oldest_birth %}
+                    <p class="text-xs text-gray-400 mt-1">
+                        <i data-feather="calendar" class="w-3 h-3 inline"></i>
+                        La plus ancienne : {{ generations.oldest_birth.year }}
+                    </p>
+                {% elif total_people > 0 %}
+                    <p class="text-xs text-gray-400 mt-1">
+                        <i data-feather="info" class="w-3 h-3 inline"></i>
+                        Ajoutez des dates de naissance
+                    </p>
+                {% else %}
+                    <p class="text-xs text-gray-400 mt-1">
+                        <i data-feather="users" class="w-3 h-3 inline"></i>
+                        Aucun membre encore
+                    </p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Stat Card 3 (Action requise) -->
+        <div class="bg-white p-6 rounded-xl border border-brand-border shadow-sm flex items-start gap-4 hover:shadow-md transition duration-300 cursor-pointer" onclick="scrollToPendingProposals()">
+            <div class="p-3 bg-stone-100 rounded-full text-gray-600">
+                <i data-feather="inbox" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <p class="text-sm text-gray-500 font-medium">En attente</p>
+                <div class="flex items-baseline gap-2 mt-1">
+                    <p class="text-3xl font-serif font-bold text-gray-800">{{ pending_proposals|length }}</p>
+                    <span class="text-xs text-brand-accent font-medium">modifications proposées</span>
+                </div>
+                {% if pending_proposals %}
+                <p class="text-xs text-brand-primary mt-1 hover:underline">Cliquer pour examiner →</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section : ACTIVITÉ RÉCENTE & RACCOURCIS -->
+<div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8">
+    
+    <!-- Colonne Gauche : Derniers ajouts (Tableau simplifié) -->
+    <div class="lg:col-span-2 bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
+        <div class="px-6 py-5 border-b border-brand-border flex justify-between items-center bg-stone-50/50">
+            <h4 class="font-serif font-bold text-brand-primary flex items-center gap-2">
+                <i data-feather="activity" class="w-5 h-5"></i>
+                Dernières modifications
+            </h4>
+            {% if user.role == 'admin' %}
+            <a href="{% url 'genealogy:audit_log' %}" class="text-xs font-medium text-brand-accent hover:underline flex items-center gap-1">
+                <i data-feather="external-link" class="w-3 h-3"></i>
+                Voir tout l'historique
+            </a>
+            {% endif %}
+        </div>
+        <div class="divide-y divide-stone-100 max-h-96 overflow-y-auto">
+            {% for person in recent_people %}
+            <!-- Item -->
+            <div class="px-6 py-4 flex items-center justify-between hover:bg-stone-50 transition group">
+                <div class="flex items-center gap-4">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-brand-primary to-green-700 flex items-center justify-center text-xs font-bold text-white">
+                        {{ person.first_name.0 }}{{ person.last_name.0 }}
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">
+                            <a href="{% url 'genealogy:person_detail' person.id %}" class="hover:text-brand-primary transition">
+                                {{ person.get_full_name }}
+                            </a>
+                        </p>
+                        <p class="text-xs text-gray-500">
+                            {% if person.created_by %}
+                                Ajouté par <span class="text-gray-700">{{ person.created_by.get_full_name }}</span>
+                            {% else %}
+                                Ajouté par un administrateur
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-400">{{ person.created_at|timesince }}</span>
+                    <i data-feather="chevron-right" class="w-4 h-4 text-gray-300 group-hover:text-brand-primary transition"></i>
+                </div>
+            </div>
+            {% empty %}
+            <div class="px-6 py-12 text-center text-gray-500">
+                <i data-feather="users" class="w-16 h-16 mx-auto mb-4 text-gray-200"></i>
+                <p class="text-gray-400 mb-2">Aucune activité récente</p>
+                <a href="{% url 'genealogy:person_create' %}" class="text-brand-accent hover:underline text-sm inline-flex items-center gap-1">
+                    <i data-feather="plus" class="w-4 h-4"></i>
+                    Ajouter votre premier membre
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Colonne Droite : Accès rapide & État -->
+    <div class="space-y-6">
+        <!-- Carte Arbre -->
+        <a href="{% url 'genealogy:family_tree' %}" class="block bg-brand-primary rounded-xl p-6 text-white shadow-lg relative overflow-hidden group cursor-pointer transition transform hover:scale-[1.02]">
+            <div class="absolute right-0 top-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+            <div class="relative z-10">
+                <div class="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mb-4">
+                    <i data-feather="share-2" class="text-white"></i>
+                </div>
+                <h4 class="font-serif text-xl font-bold mb-2">Explorer l'arbre interactif</h4>
+                <p class="text-green-100/80 text-sm mb-4">Naviguez visuellement à travers les générations Kanyamukenge.</p>
+                <span class="inline-block text-sm font-medium border-b border-brand-accent pb-0.5 group-hover:border-white transition">Ouvrir la vue →</span>
+            </div>
+        </a>
+
+        <!-- ENHANCED: Generations Detail Card -->
+        {% if total_generations > 1 %}
+        <div class="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-xl p-6 shadow-sm">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <i data-feather="git-merge" class="w-4 h-4 text-amber-600"></i>
+                </div>
+                <h4 class="font-serif font-bold text-amber-800">Étendue familiale</h4>
+            </div>
+            <div class="space-y-2 text-sm">
+                {% if generations.oldest_birth and generations.newest_birth %}
+                    <div class="flex justify-between">
+                        <span class="text-amber-700">Plus ancien:</span>
+                        <span class="font-medium text-amber-800">{{ generations.oldest_birth.year }}</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span class="text-amber-700">Plus récent:</span>
+                        <span class="font-medium text-amber-800">{{ generations.newest_birth.year }}</span>
+                    </div>
+                    <!-- <div class="flex justify-between border-t border-amber-200 pt-2 mt-2">
+                        <span class="text-amber-700">Étendue:</span>
+                        <span class="font-bold text-amber-800">{{ generations.newest_birth.year|add:'-'|add:generations.oldest_birth.year }} ans</span>
+                    </div> -->
+                {% endif %}
+                <p class="text-xs text-amber-600 mt-3">
+                    <i data-feather="info" class="w-3 h-3 inline"></i>
+                    {{ total_generations }} génération{{ total_generations|pluralize }} dans votre arbre
+                </p>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Carte Actions Rapides -->
+        <div class="bg-white rounded-xl border border-brand-border p-6 shadow-sm">
+            <h4 class="font-serif font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <i data-feather="zap" class="w-4 h-4 text-gray-400"></i> Actions rapides
+            </h4>
+            <div class="space-y-2">
+                <a href="{% url 'genealogy:person_create' %}" class="flex items-center gap-3 p-3 rounded-lg hover:bg-stone-50 transition text-sm group">
+                    <div class="w-8 h-8 bg-brand-accent/10 rounded-lg flex items-center justify-center group-hover:bg-brand-accent group-hover:text-white transition">
+                        <i data-feather="user-plus" class="w-4 h-4 text-brand-accent group-hover:text-white"></i>
+                    </div>
+                    <span>Ajouter un membre</span>
+                </a>
+                <a href="{% url 'genealogy:search' %}" class="flex items-center gap-3 p-3 rounded-lg hover:bg-stone-50 transition text-sm group">
+                    <div class="w-8 h-8 bg-brand-primary/10 rounded-lg flex items-center justify-center group-hover:bg-brand-primary group-hover:text-white transition">
+                        <i data-feather="search" class="w-4 h-4 text-brand-primary group-hover:text-white"></i>
+                    </div>
+                    <span>Rechercher une personne</span>
+                </a>
+                <a href="{% url 'genealogy:export_gedcom' %}" class="flex items-center gap-3 p-3 rounded-lg hover:bg-stone-50 transition text-sm group">
+                    <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition">
+                        <i data-feather="download" class="w-4 h-4 text-blue-500 group-hover:text-white"></i>
+                    </div>
+                    <span>Exporter l'arbre</span>
+                </a>
+                {% if user.role == 'admin' %}
+                <div class="border-t border-gray-100 pt-2 mt-2">
+                    <a href="{% url 'accounts:send_invitation' %}" class="flex items-center gap-3 p-3 rounded-lg hover:bg-stone-50 transition text-sm group">
+                        <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center group-hover:bg-green-500 group-hover:text-white transition">
+                            <i data-feather="mail" class="w-4 h-4 text-green-500 group-hover:text-white"></i>
+                        </div>
+                        <span>Inviter un membre</span>
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Événements récents -->
+        {% if recent_events %}
+        <div class="bg-white rounded-xl border border-brand-border p-6 shadow-sm">
+            <h4 class="font-serif font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <i data-feather="calendar" class="w-4 h-4 text-gray-400"></i> Événements récents
+            </h4>
+            <div class="space-y-3 max-h-48 overflow-y-auto">
+                {% for event in recent_events %}
+                <div class="border-l-2 border-brand-accent pl-3 hover:bg-stone-50 p-2 rounded-r-lg transition">
+                    <p class="text-sm font-medium text-gray-900">{{ event.title }}</p>
+                    <p class="text-xs text-gray-500 flex items-center gap-1">
+                        <i data-feather="calendar" class="w-3 h-3"></i>
+                        {{ event.date|date:"d M Y"|default:"Date non précisée" }}
+                    </p>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Propositions en attente (Admin seulement) -->
+{% if user.role == 'admin' and pending_proposals %}
+<div class="max-w-6xl mx-auto mt-10" id="pending-proposals">
+    <div class="bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200 rounded-xl p-6 shadow-sm">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <i data-feather="alert-triangle" class="w-5 h-5 text-yellow-600"></i>
+            </div>
+            <div>
+                <h4 class="font-serif font-bold text-yellow-800">Propositions en attente de validation</h4>
+                <p class="text-sm text-yellow-700">{{ pending_proposals|length }} proposition{{ pending_proposals|length|pluralize }} nécessite{{ pending_proposals|length|pluralize:"nt" }} votre attention</p>
+            </div>
+        </div>
+        <div class="space-y-3">
+            {% for proposal in pending_proposals %}
+            <div class="flex items-center justify-between bg-white p-4 rounded-lg border border-yellow-200 hover:shadow-sm transition">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold">
+                        {{ proposal.person.first_name.0 }}{{ proposal.person.last_name.0 }}
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">
+                            Modification de <span class="text-brand-primary">{{ proposal.get_field_name_display }}</span> 
+                            pour <span class="font-semibold">{{ proposal.person.get_full_name }}</span>
+                        </p>
+                        <p class="text-xs text-gray-500 flex items-center gap-1">
+                            <i data-feather="user" class="w-3 h-3"></i>
+                            Proposée par {{ proposal.proposed_by.get_full_name }}
+                            <span class="mx-1">•</span>
+                            <i data-feather="clock" class="w-3 h-3"></i>
+                            {{ proposal.created_at|timesince }}
+                        </p>
+                    </div>
+                </div>
+                <a href="{% url 'genealogy:review_proposal' proposal.id %}" class="text-sm font-medium text-brand-accent hover:text-brand-primary transition flex items-center gap-1">
+                    <span>Examiner</span>
+                    <i data-feather="arrow-right" class="w-4 h-4"></i>
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="mt-4 text-center">
+            <a href="{% url 'genealogy:manage_users' %}" class="text-sm text-yellow-700 hover:text-yellow-800 underline">
+                Voir toutes les propositions en attente
+            </a>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<script>
+function scrollToPendingProposals() {
+    const element = document.getElementById('pending-proposals');
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+</script>
+
+{% endblock %}

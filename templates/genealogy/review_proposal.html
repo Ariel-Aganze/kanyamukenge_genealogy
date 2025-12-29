@@ -1,0 +1,460 @@
+{% extends 'base/dashboard.html' %}
+
+{% block title %}Examiner la proposition - Famille KANYAMUKENGE{% endblock %}
+{% block page_title %}Examiner une proposition{% endblock %}
+
+{% block dashboard_content %}
+<div class="max-w-5xl mx-auto">
+
+    <!-- Breadcrumb -->
+    <nav class="flex items-center gap-2 text-sm text-gray-500 mb-6">
+        <a href="{% url 'genealogy:dashboard' %}" class="hover:text-brand-primary transition">Tableau de bord</a>
+        <i data-feather="chevron-right" class="w-4 h-4"></i>
+        <a href="{% url 'genealogy:manage_users' %}" class="hover:text-brand-primary transition">Gestion</a>
+        <i data-feather="chevron-right" class="w-4 h-4"></i>
+        <span class="text-brand-primary">Proposition #{{ proposal.id }}</span>
+    </nav>
+
+    <!-- Header avec statut -->
+    <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6 mb-8">
+        <div class="flex items-start justify-between">
+            <div class="flex items-center gap-4">
+                <div class="w-16 h-16 bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-full flex items-center justify-center">
+                    <i data-feather="git-pull-request" class="w-8 h-8 text-white"></i>
+                </div>
+                <div>
+                    <h1 class="font-serif text-2xl font-bold text-brand-primary">Proposition de modification</h1>
+                    <div class="flex items-center gap-3 mt-2">
+                        <p class="text-gray-600">Proposée par <strong>{{ proposal.proposed_by.get_full_name }}</strong></p>
+                        <span class="text-gray-300">•</span>
+                        <p class="text-gray-500 text-sm">{{ proposal.created_at|timesince }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Statut -->
+            <div class="text-right">
+                <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium
+                    {% if proposal.status == 'pending' %}bg-yellow-100 text-yellow-800{% elif proposal.status == 'approved' %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
+                    {% if proposal.status == 'pending' %}
+                        <i data-feather="clock" class="w-4 h-4"></i>
+                        En attente
+                    {% elif proposal.status == 'approved' %}
+                        <i data-feather="check" class="w-4 h-4"></i>
+                        Approuvée
+                    {% else %}
+                        <i data-feather="x" class="w-4 h-4"></i>
+                        Rejetée
+                    {% endif %}
+                </span>
+                {% if proposal.status != 'pending' %}
+                <p class="text-xs text-gray-500 mt-1">
+                    par {{ proposal.reviewed_by.get_full_name }}
+                    le {{ proposal.reviewed_at|date:"d/m/Y à H:i" }}
+                </p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        
+        <!-- Colonne principale - Détails de la proposition -->
+        <div class="lg:col-span-2 space-y-6">
+            
+            <!-- Personne concernée -->
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+                <h2 class="font-serif text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="user" class="w-5 h-5 text-gray-400"></i>
+                    Personne concernée
+                </h2>
+                
+                <div class="flex items-center gap-4">
+                    <div class="w-16 h-16 rounded-full bg-gradient-to-br 
+                        {% if proposal.person.gender == 'M' %}from-blue-500 to-blue-600{% elif proposal.person.gender == 'F' %}from-pink-500 to-pink-600{% else %}from-gray-500 to-gray-600{% endif %} 
+                        flex items-center justify-center text-white font-bold text-xl">
+                        {{ proposal.person.first_name.0 }}{{ proposal.person.last_name.0 }}
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="font-semibold text-gray-900 text-lg">
+                            <a href="{% url 'genealogy:person_detail' proposal.person.id %}" class="hover:text-brand-primary transition">
+                                {{ proposal.person.get_full_name }}
+                            </a>
+                        </h3>
+                        <div class="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                            {% if proposal.person.birth_date %}
+                            <span>{{ proposal.person.birth_date|date:"Y" }}</span>
+                            {% endif %}
+                            {% if proposal.person.profession %}
+                            <span>• {{ proposal.person.profession }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <a href="{% url 'genealogy:person_detail' proposal.person.id %}" 
+                           class="text-sm text-brand-accent hover:text-brand-primary transition inline-flex items-center gap-1">
+                            <span>Voir la fiche</span>
+                            <i data-feather="external-link" class="w-4 h-4"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Détails de la modification -->
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+                <h2 class="font-serif text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="edit-3" class="w-5 h-5 text-gray-400"></i>
+                    Modification proposée
+                </h2>
+                
+                <!-- Champ concerné -->
+                <div class="mb-6">
+                    <h3 class="text-sm font-medium text-gray-500 mb-2">Champ concerné</h3>
+                    <div class="inline-flex items-center gap-2 bg-blue-50 text-blue-800 px-3 py-1 rounded-lg text-sm font-medium">
+                        <i data-feather="tag" class="w-4 h-4"></i>
+                        {{ proposal.get_field_name_display }}
+                    </div>
+                </div>
+
+                <!-- Comparaison avant/après -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    <!-- Valeur actuelle -->
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <i data-feather="minus-circle" class="w-4 h-4 text-red-600"></i>
+                            <span class="font-medium text-red-800">Valeur actuelle</span>
+                        </div>
+                        <div class="text-sm text-red-700 bg-white p-3 rounded border border-red-200">
+                            {% if proposal.old_value %}
+                                {{ proposal.old_value }}
+                            {% else %}
+                                <em class="text-red-400">Aucune valeur</em>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Nouvelle valeur proposée -->
+                    <div class="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <i data-feather="plus-circle" class="w-4 h-4 text-green-600"></i>
+                            <span class="font-medium text-green-800">Nouvelle valeur proposée</span>
+                        </div>
+                        <div class="text-sm text-green-700 bg-white p-3 rounded border border-green-200">
+                            {{ proposal.new_value }}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Justification -->
+                <div class="bg-stone-50 border border-stone-200 rounded-lg p-4">
+                    <h4 class="font-medium text-gray-900 mb-2 flex items-center gap-2">
+                        <i data-feather="message-square" class="w-4 h-4 text-gray-500"></i>
+                        Justification
+                    </h4>
+                    <p class="text-sm text-gray-700 leading-relaxed">{{ proposal.justification }}</p>
+                </div>
+            </div>
+
+            <!-- Historique et commentaires -->
+            {% if proposal.review_notes or proposal.status != 'pending' %}
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+                <h2 class="font-serif text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="message-circle" class="w-5 h-5 text-gray-400"></i>
+                    Commentaires de révision
+                </h2>
+                
+                {% if proposal.review_notes %}
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <i data-feather="user" class="w-4 h-4 text-blue-600"></i>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="font-medium text-blue-900">{{ proposal.reviewed_by.get_full_name }}</span>
+                                <span class="text-xs text-blue-600">{{ proposal.reviewed_at|date:"d/m/Y à H:i" }}</span>
+                            </div>
+                            <p class="text-sm text-blue-800">{{ proposal.review_notes }}</p>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-gray-500 text-center py-4">Aucun commentaire de révision</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
+            <!-- Actions (si en attente) -->
+            {% if proposal.status == 'pending' %}
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+                <h2 class="font-serif text-xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="zap" class="w-5 h-5 text-gray-400"></i>
+                    Actions
+                </h2>
+                
+                <form method="post" id="reviewForm">
+                    {% csrf_token %}
+                    
+                    <!-- Commentaires admin -->
+                    <div class="mb-6">
+                        <label for="admin_notes" class="block text-sm font-medium text-gray-700 mb-2">
+                            Commentaires (optionnel)
+                        </label>
+                        <textarea name="admin_notes" id="admin_notes" rows="3" 
+                            class="w-full px-4 py-3 border border-brand-border rounded-lg focus:ring-2 focus:ring-brand-primary focus:border-transparent resize-none"
+                            placeholder="Ajoutez des commentaires sur votre décision..."></textarea>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Ces commentaires seront visibles par le demandeur.
+                        </p>
+                    </div>
+
+                    <!-- Boutons d'action -->
+                    <div class="flex gap-4">
+                        <button type="submit" name="action" value="approve" 
+                                class="bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700 transition flex items-center gap-2 flex-1" 
+                                id="approveButton">
+                            <i data-feather="check" class="w-4 h-4"></i>
+                            <span>Approuver et appliquer</span>
+                        </button>
+                        
+                        <button type="submit" name="action" value="reject" 
+                                class="bg-red-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-red-700 transition flex items-center gap-2 flex-1" 
+                                id="rejectButton">
+                            <i data-feather="x" class="w-4 h-4"></i>
+                            <span>Rejeter</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+        
+        <!-- Sidebar - Informations contextuelles -->
+        <div class="lg:col-span-1 space-y-6">
+            
+            <!-- Informations du demandeur -->
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+                <h3 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="user-check" class="w-5 h-5 text-gray-400"></i>
+                    Demandeur
+                </h3>
+                
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xl mx-auto mb-3">
+                        {{ proposal.proposed_by.first_name.0 }}{{ proposal.proposed_by.last_name.0 }}
+                    </div>
+                    <h4 class="font-medium text-gray-900">{{ proposal.proposed_by.get_full_name }}</h4>
+                    <p class="text-sm text-gray-500">{{ proposal.proposed_by.get_role_display }}</p>
+                    
+                    <div class="mt-4 space-y-2 text-xs text-gray-600">
+                        {% if proposal.proposed_by.email %}
+                        <div class="flex items-center justify-center gap-1">
+                            <i data-feather="mail" class="w-3 h-3"></i>
+                            <span>{{ proposal.proposed_by.email }}</span>
+                        </div>
+                        {% endif %}
+                        <div class="flex items-center justify-center gap-1">
+                            <i data-feather="calendar" class="w-3 h-3"></i>
+                            <span>Membre depuis {{ proposal.proposed_by.date_joined|date:"Y" }}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Statistiques du demandeur -->
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <div class="grid grid-cols-2 gap-4 text-center">
+                        <div>
+                            <div class="text-lg font-serif font-bold text-brand-primary">{{ user_proposals_count|default:0 }}</div>
+                            <div class="text-xs text-gray-500">Propositions</div>
+                        </div>
+                        <div>
+                            <div class="text-lg font-serif font-bold text-brand-primary">{{ user_people_count|default:0 }}</div>
+                            <div class="text-xs text-gray-500">Ajouts</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Détails techniques -->
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+                <h3 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="info" class="w-5 h-5 text-gray-400"></i>
+                    Informations
+                </h3>
+                
+                <div class="space-y-3 text-sm">
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">ID Proposition</span>
+                        <span class="font-mono text-gray-900">#{{ proposal.id }}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Créée le</span>
+                        <span class="text-gray-900">{{ proposal.created_at|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-600">Priorité</span>
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs">
+                            <i data-feather="flag" class="w-3 h-3"></i>
+                            Normale
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions rapides -->
+            {% if proposal.status == 'pending' %}
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+                <h3 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="zap" class="w-5 h-5 text-gray-400"></i>
+                    Actions rapides
+                </h3>
+                
+                <div class="space-y-2">
+                    <button onclick="quickApprove()" class="w-full p-3 rounded-lg hover:bg-green-50 transition text-sm flex items-center gap-2 text-green-700">
+                        <i data-feather="check-circle" class="w-4 h-4"></i>
+                        Approuver rapidement
+                    </button>
+                    
+                    <button onclick="quickReject()" class="w-full p-3 rounded-lg hover:bg-red-50 transition text-sm flex items-center gap-2 text-red-700">
+                        <i data-feather="x-circle" class="w-4 h-4"></i>
+                        Rejeter rapidement
+                    </button>
+                    
+                    <a href="{% url 'genealogy:person_edit' proposal.person.id %}" class="w-full p-3 rounded-lg hover:bg-blue-50 transition text-sm flex items-center gap-2 text-blue-700">
+                        <i data-feather="edit-2" class="w-4 h-4"></i>
+                        Modifier directement
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Propositions similaires -->
+            {% if similar_proposals %}
+            <div class="bg-white rounded-xl border border-brand-border shadow-sm p-6">
+                <h3 class="font-serif text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="copy" class="w-5 h-5 text-gray-400"></i>
+                    Propositions similaires
+                </h3>
+                
+                <div class="space-y-3">
+                    {% for similar in similar_proposals %}
+                    <div class="p-3 border border-gray-200 rounded-lg hover:border-brand-primary transition">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-sm font-medium">{{ similar.person.get_full_name }}</span>
+                            <span class="text-xs text-gray-500">{{ similar.created_at|timesince }}</span>
+                        </div>
+                        <p class="text-xs text-gray-600">{{ similar.get_field_name_display }}</p>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal de confirmation -->
+<div id="confirmModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 rounded-full flex items-center justify-center" id="modalIcon">
+                <!-- Icône dynamique -->
+            </div>
+            <div>
+                <h3 class="font-serif text-lg font-bold text-gray-900" id="modalTitle">Confirmer l'action</h3>
+                <p class="text-sm text-gray-600" id="modalSubtitle">Cette action est irréversible</p>
+            </div>
+        </div>
+        
+        <p class="text-gray-700 mb-6" id="modalText">
+            <!-- Texte dynamique -->
+        </p>
+        
+        <div class="flex gap-3">
+            <button onclick="confirmAction()" class="flex-1 py-2 px-4 rounded-lg font-medium" id="modalConfirmButton">
+                Confirmer
+            </button>
+            <button onclick="hideConfirmModal()" class="flex-1 bg-gray-100 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-200 transition">
+                Annuler
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentAction = null;
+
+// Actions rapides
+function quickApprove() {
+    showConfirmModal('approve', 'Approuver la proposition', 
+        'La modification sera appliquée immédiatement à la fiche de {{ proposal.person.get_full_name }}.', 
+        'bg-green-100', 'text-green-600', 'check-circle', 'bg-green-600 hover:bg-green-700 text-white');
+}
+
+function quickReject() {
+    showConfirmModal('reject', 'Rejeter la proposition', 
+        'La proposition sera définitivement rejetée et le demandeur sera notifié.', 
+        'bg-red-100', 'text-red-600', 'x-circle', 'bg-red-600 hover:bg-red-700 text-white');
+}
+
+function showConfirmModal(action, title, text, iconBg, iconColor, iconName, buttonClass) {
+    currentAction = action;
+    
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalText').textContent = text;
+    
+    const iconDiv = document.getElementById('modalIcon');
+    iconDiv.className = `w-12 h-12 ${iconBg} rounded-full flex items-center justify-center`;
+    iconDiv.innerHTML = `<i data-feather="${iconName}" class="w-6 h-6 ${iconColor}"></i>`;
+    
+    const confirmButton = document.getElementById('modalConfirmButton');
+    confirmButton.className = `flex-1 py-2 px-4 rounded-lg font-medium transition ${buttonClass}`;
+    
+    document.getElementById('confirmModal').classList.remove('hidden');
+    feather.replace();
+}
+
+function hideConfirmModal() {
+    document.getElementById('confirmModal').classList.add('hidden');
+    currentAction = null;
+}
+
+function confirmAction() {
+    if (currentAction) {
+        const form = document.getElementById('reviewForm');
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = currentAction;
+        form.appendChild(actionInput);
+        form.submit();
+    }
+}
+
+// Form submission avec confirmation
+document.getElementById('reviewForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const action = e.submitter.value;
+    const actionText = action === 'approve' ? 'approuver' : 'rejeter';
+    const actionTitle = action === 'approve' ? 'Approuver la proposition' : 'Rejeter la proposition';
+    const actionDesc = action === 'approve' ? 
+        'La modification sera appliquée immédiatement à la fiche.' : 
+        'La proposition sera définitivement rejetée.';
+    
+    const iconConfig = action === 'approve' ? 
+        ['bg-green-100', 'text-green-600', 'check-circle', 'bg-green-600 hover:bg-green-700 text-white'] :
+        ['bg-red-100', 'text-red-600', 'x-circle', 'bg-red-600 hover:bg-red-700 text-white'];
+    
+    showConfirmModal(action, actionTitle, actionDesc, iconConfig[0], iconConfig[1], iconConfig[2], iconConfig[3]);
+});
+
+// Fermer la modal en cliquant à l'extérieur
+document.getElementById('confirmModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+        hideConfirmModal();
+    }
+});
+</script>
+
+{% endblock %}

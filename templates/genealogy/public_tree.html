@@ -1,0 +1,766 @@
+{% extends 'base/base.html' %}
+
+{% block title %}Arbre Généalogique Public - Famille KANYAMUKENGE{% endblock %}
+
+{% load static %}
+
+{% block content %}
+<div class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-green-50">
+    
+    <!-- Header -->
+    <header class="bg-white border-b border-gray-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 py-6">
+            <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+                <div class="flex-1">
+                    <div class="flex items-center gap-4 mb-2">
+                        <a href="{% url 'genealogy:home' %}" class="text-brand-primary hover:text-green-800 transition">
+                            <i data-feather="arrow-left" class="w-5 h-5"></i>
+                        </a>
+                        <h1 class="font-serif text-2xl lg:text-3xl font-bold text-brand-primary">
+                            Arbre Généalogique Public
+                        </h1>
+                    </div>
+                    <p class="text-gray-600 text-sm lg:text-base">
+                        Explorez l'arbre familial KANYAMUKENGE • Vue publique limitée
+                    </p>
+                    <div class="flex flex-wrap gap-4 text-sm text-gray-500 mt-2">
+                        <span class="flex items-center gap-2">
+                            <i data-feather="users" class="w-4 h-4"></i>
+                            <span id="total-members">0</span> membres publics
+                        </span>
+                        <span class="flex items-center gap-2">
+                            <i data-feather="layers" class="w-4 h-4"></i>
+                            <span id="total-generations">0</span> générations
+                        </span>
+                    </div>
+                </div>
+                
+                <!-- Login Prompt -->
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 max-w-sm">
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <i data-feather="info" class="w-4 h-4 text-amber-600"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-semibold text-amber-800 mb-1">Vue limitée</h3>
+                            <p class="text-xs text-amber-700 mb-3">Connectez-vous pour voir tous les détails, photos et informations complètes.</p>
+                            <div class="flex gap-2">
+                                <a href="{% url 'accounts:login' %}" class="bg-brand-primary text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-800 transition">
+                                    Se connecter
+                                </a>
+                                <a href="{% url 'genealogy:home' %}#about" class="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-gray-200 transition">
+                                    En savoir plus
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Controls Panel -->
+    <div class="max-w-7xl mx-auto px-4 py-4">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-medium text-gray-700">Point de départ:</label>
+                        <select id="rootPersonSelect" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-primary focus:border-transparent">
+                            <option value="">Sélectionner une personne...</option>
+                            {% for person in public_people %}
+                            <option value="{{ person.id }}" {% if person.id == center_person.id %}selected{% endif %}>
+                                {{ person.get_full_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 text-sm text-gray-600">
+                        <i data-feather="zoom-in" class="w-4 h-4"></i>
+                        Zoom
+                    </div>
+                    <button onclick="zoomOut()" class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                        <i data-feather="minus" class="w-4 h-4"></i>
+                    </button>
+                    <span id="zoom-level" class="px-3 py-1 bg-gray-50 border border-gray-300 rounded-lg text-sm font-mono">100%</span>
+                    <button onclick="zoomIn()" class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition">
+                        <i data-feather="plus" class="w-4 h-4"></i>
+                    </button>
+                    <button onclick="centerTree()" class="px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition text-sm font-medium">
+                        <i data-feather="home" class="w-4 h-4 mr-2"></i>
+                        Centrer
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Family Tree Display -->
+    <div class="max-w-7xl mx-auto px-4 pb-8">
+        <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">        
+            <div id="treeContainer" class="relative bg-gradient-to-br from-slate-50 via-white to-blue-50 min-h-screen overflow-auto">
+                <!-- Loading State -->
+                <div id="treeLoading" class="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-10">
+                    <div class="text-center">
+                        <div class="w-12 h-12 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-4 mx-auto"></div>
+                        <p class="text-gray-600 font-medium">Construction de l'arbre généalogique public...</p>
+                    </div>
+                </div>
+                
+                <!-- SVG Canvas -->
+                <svg id="familyTreeSvg" class="w-full h-full min-h-screen">
+                    <!-- Definitions for patterns and gradients -->
+                    <defs>
+                        <!-- Card drop shadow -->
+                        <filter id="cardShadow" x="-50%" y="-50%" width="200%" height="200%">
+                            <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+                            <feOffset dx="2" dy="4" result="offset"/>
+                            <feFlood flood-color="#000000" flood-opacity="0.1"/>
+                            <feComposite in2="offset" operator="in"/>
+                            <feMerge>
+                                <feMergeNode/>
+                                <feMergeNode in="SourceGraphic"/>
+                            </feMerge>
+                        </filter>
+                        
+                        <!-- Locked content pattern -->
+                        <pattern id="lockedPattern" patternUnits="userSpaceOnUse" width="10" height="10">
+                            <rect width="10" height="10" fill="#f9fafb"/>
+                            <path d="m0,10l10,-10m-5,0l10,10" stroke="#e5e7eb" stroke-width="1" opacity="0.3"/>
+                        </pattern>
+                    </defs>
+                </svg>
+                
+                <!-- Public Info Panel -->
+                <div id="infoPanel" class="absolute top-6 right-6 max-w-sm bg-white rounded-xl shadow-lg border border-gray-200 p-5 hidden transform transition-all duration-300">
+                    <div class="flex items-start justify-between mb-4">
+                        <h3 class="font-serif text-lg font-semibold text-brand-primary" id="infoPanelName">-</h3>
+                        <button onclick="hideInfoPanel()" class="text-gray-400 hover:text-gray-600 transition">
+                            <i data-feather="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <div id="infoPanelContent" class="space-y-3 text-sm text-gray-600">
+                        <!-- Dynamic content -->
+                    </div>
+                    <div class="mt-4 pt-4 border-t border-gray-100">
+                        <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3">
+                            <div class="flex items-center gap-2 text-amber-800 text-xs font-medium mb-1">
+                                <i data-feather="lock" class="w-3 h-3"></i>
+                                Informations limitées
+                            </div>
+                            <p class="text-amber-700 text-xs">Connectez-vous pour voir la biographie et photos.</p>
+                        </div>
+                        <a href="{% url 'accounts:login' %}" 
+                           class="w-full px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition text-sm font-medium text-center block">
+                            Se connecter pour plus d'infos
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Public Features Notice -->
+    <div class="max-w-4xl mx-auto px-4 pb-8">
+        <div class="bg-gradient-to-r from-blue-50 to-green-50 border border-blue-200 rounded-xl p-6">
+            <div class="flex items-start gap-4">
+                <div class="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <i data-feather="eye" class="w-5 h-5 text-blue-600"></i>
+                </div>
+                <div>
+                    <h3 class="font-serif text-lg font-semibold text-gray-800 mb-2">Vue publique de l'arbre familial</h3>
+                    <p class="text-gray-600 text-sm mb-3">
+                        Vous explorez actuellement une version limitée de l'arbre généalogique KANYAMUKENGE. Seules les informations de base sont visibles.
+                    </p>
+                    <div class="grid md:grid-cols-2 gap-4 text-xs">
+                        <div>
+                            <h4 class="font-semibold text-gray-700 mb-2"> Visible sans connexion :</h4>
+                            <ul class="text-gray-600 space-y-1">
+                                <li>• Noms et prénoms</li>
+                                <li>• Structure familiale de base</li>
+                                <li>• Relations parent-enfant</li>
+                            </ul>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-gray-700 mb-2">Réservé aux membres :</h4>
+                            <ul class="text-gray-600 space-y-1">
+                                <li>• Photos et portraits</li>
+                                <li>• Années de naissance/décès</li>
+                                <li>• Biographies détaillées</li>
+                                <li>• Documents et archives</li>
+                                <li>• Informations de contact</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-4">
+                        <a href="{% url 'accounts:login' %}" class="bg-brand-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-800 transition">
+                            Devenir membre
+                        </a>
+                        <a href="{% url 'genealogy:home' %}" class="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition">
+                            En savoir plus
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+/* Public tree specific styles */
+.tree-node {
+    cursor: pointer;
+}
+
+.connection-line {
+    stroke: #9ca3af;
+    stroke-width: 2;
+    fill: none;
+    opacity: 0.7;
+}
+
+.marriage-line {
+    stroke: #ef4444;
+    stroke-width: 3;
+    fill: none;
+    opacity: 0.8;
+}
+
+.generation-label {
+    font-family: 'Inter', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    fill: #6b7280;
+    text-anchor: start;
+}
+
+/* Limited info styling */
+.public-node .locked-info {
+    opacity: 0.6;
+    filter: blur(1px);
+}
+</style>
+
+<script>
+// Global variables
+let treeData = {{ tree_data|safe }};
+let svg, g;
+let currentScale = 1;
+let currentTransform = { x: 0, y: 0 };
+let selectedPersonId = null;
+let zoomBehavior;
+
+// Tree layout configuration - adapted for public view
+const config = {
+    nodeWidth: 220,
+    nodeHeight: 100, // Reduced height since no birth/death dates
+    horizontalSpacing: 80,
+    verticalSpacing: 150,
+    generationHeight: 180,
+    colors: {
+        male: { fill: '#e0f2fe', stroke: '#0284c7' },
+        female: { fill: '#fce7f3', stroke: '#db2777' },
+        unknown: { fill: '#f3f4f6', stroke: '#6b7280' }
+    }
+};
+
+// Initialize when page loads
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Public tree data:', treeData);
+    initializeFamilyTree();
+    setupEventListeners();
+});
+
+function initializeFamilyTree() {
+    const container = document.getElementById('treeContainer');
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    
+    svg = d3.select("#familyTreeSvg")
+        .attr("width", width)
+        .attr("height", height);
+    
+    // Clear existing content
+    svg.selectAll("*").remove();
+    
+    // Add definitions
+    const defs = svg.append("defs");
+    defs.html(`
+        <filter id="cardShadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur in="SourceAlpha" stdDeviation="3"/>
+            <feOffset dx="2" dy="4" result="offset"/>
+            <feFlood flood-color="#000000" flood-opacity="0.1"/>
+            <feComposite in2="offset" operator="in"/>
+            <feMerge>
+                <feMergeNode/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+        <pattern id="lockedPattern" patternUnits="userSpaceOnUse" width="10" height="10">
+            <rect width="10" height="10" fill="#f9fafb"/>
+            <path d="m0,10l10,-10m-5,0l10,10" stroke="#e5e7eb" stroke-width="1" opacity="0.3"/>
+        </pattern>
+    `);
+    
+    // Add zoom behavior
+    zoomBehavior = d3.zoom()
+        .scaleExtent([0.1, 3])
+        .on("zoom", handleZoom);
+    
+    svg.call(zoomBehavior);
+    
+    // Main group for all elements
+    g = svg.append("g").attr("class", "main-group");
+    
+    // Render the family tree
+    renderFamilyTree();
+    
+    // Center the tree initially
+    setTimeout(() => {
+        centerTree();
+        hideLoading();
+    }, 1000);
+}
+
+function renderFamilyTree() {
+    if (!treeData || !treeData.individuals) {
+        showError('Aucune donnée généalogique publique disponible');
+        return;
+    }
+    
+    console.log('Rendering public tree with', Object.keys(treeData.individuals).length, 'individuals');
+    
+    // Build generation structure
+    const generations = buildGenerationStructure(treeData.individuals);
+    console.log('Built generations:', generations);
+    
+    // Update statistics
+    updateStatistics(treeData.individuals, generations);
+    
+    // Calculate positions
+    const layout = calculateTreeLayout(generations);
+    
+    // Render elements in order
+    drawGenerationLabels(layout);
+    drawConnections(layout);
+    drawPersonNodes(layout);
+}
+
+function buildGenerationStructure(individuals) {
+    const generations = new Map();
+    const processed = new Set();
+    
+    // Find root people (those without parents)
+    const rootPeople = Object.values(individuals).filter(person => 
+        !person.parents || person.parents.length === 0
+    );
+    
+    if (rootPeople.length === 0) {
+        // If no clear roots, take the oldest person
+        const oldestPerson = Object.values(individuals).reduce((oldest, person) => {
+            if (!oldest) return person;
+            const oldestYear = oldest.birth_year || 9999;
+            const personYear = person.birth_year || 9999;
+            return personYear < oldestYear ? person : oldest;
+        }, null);
+        
+        if (oldestPerson) rootPeople.push(oldestPerson);
+    }
+    
+    // Build generations using BFS
+    let queue = rootPeople.map(person => ({ person, generation: 0 }));
+    
+    while (queue.length > 0) {
+        const { person, generation } = queue.shift();
+        
+        if (processed.has(person.id)) continue;
+        processed.add(person.id);
+        
+        if (!generations.has(generation)) {
+            generations.set(generation, []);
+        }
+        
+        generations.get(generation).push(person);
+        
+        // Add children to next generation
+        if (person.children && person.children.length > 0) {
+            person.children.forEach(childId => {
+                const child = individuals[childId];
+                if (child && !processed.has(childId)) {
+                    queue.push({ person: child, generation: generation + 1 });
+                }
+            });
+        }
+    }
+    
+    return generations;
+}
+
+function calculateTreeLayout(generations) {
+    const layout = [];
+    let currentY = 100;
+    
+    generations.forEach((people, generationLevel) => {
+        const generationData = {
+            level: generationLevel,
+            y: currentY,
+            people: []
+        };
+        
+        // Calculate x positions to center the generation
+        const totalWidth = people.length * config.nodeWidth + (people.length - 1) * config.horizontalSpacing;
+        let startX = (document.getElementById('treeContainer').clientWidth - totalWidth) / 2;
+        
+        people.forEach((person, index) => {
+            const x = startX + index * (config.nodeWidth + config.horizontalSpacing);
+            
+            generationData.people.push({
+                ...person,
+                x: x,
+                y: currentY,
+                generation: generationLevel
+            });
+        });
+        
+        layout.push(generationData);
+        currentY += config.generationHeight;
+    });
+    
+    return layout;
+}
+
+function drawGenerationLabels(layout) {
+    layout.forEach(generation => {
+        g.append('text')
+            .attr('class', 'generation-label')
+            .attr('x', 30)
+            .attr('y', generation.y + 50)
+            .text(`Génération ${generation.level + 1}`)
+            .style('opacity', 0)
+            .transition()
+            .duration(800)
+            .delay(generation.level * 200)
+            .style('opacity', 1);
+    });
+}
+
+function drawConnections(layout) {
+    const individuals = treeData.individuals;
+    
+    // Draw parent-child connections
+    layout.forEach(generation => {
+        generation.people.forEach(person => {
+            if (person.children && person.children.length > 0) {
+                person.children.forEach(childId => {
+                    const child = individuals[childId];
+                    if (child) {
+                        // Find child's position in layout
+                        layout.forEach(childGeneration => {
+                            const childNode = childGeneration.people.find(p => p.id === childId);
+                            if (childNode) {
+                                drawConnection(
+                                    person.x + config.nodeWidth / 2,
+                                    person.y + config.nodeHeight,
+                                    childNode.x + config.nodeWidth / 2,
+                                    childNode.y,
+                                    'parent-child'
+                                );
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    });
+    
+    // Draw marriage connections
+    const processedMarriages = new Set();
+    
+    layout.forEach(generation => {
+        generation.people.forEach(person => {
+            if (person.partners && person.partners.length > 0) {
+                person.partners.forEach(partnerId => {
+                    const marriageId = [person.id, partnerId].sort().join('-');
+                    
+                    if (!processedMarriages.has(marriageId)) {
+                        processedMarriages.add(marriageId);
+                        
+                        const partner = individuals[partnerId];
+                        if (partner) {
+                            const partnerNode = generation.people.find(p => p.id === partnerId);
+                            
+                            if (partnerNode) {
+                                drawConnection(
+                                    Math.min(person.x + config.nodeWidth, partnerNode.x + config.nodeWidth),
+                                    person.y + config.nodeHeight / 2,
+                                    Math.max(person.x, partnerNode.x),
+                                    partnerNode.y + config.nodeHeight / 2,
+                                    'marriage'
+                                );
+                            }
+                        }
+                    }
+                });
+            }
+        });
+    });
+}
+
+function drawConnection(x1, y1, x2, y2, type) {
+    const className = type === 'marriage' ? 'marriage-line' : 'connection-line';
+    
+    if (type === 'parent-child') {
+        // Curved connection for parent-child
+        const midY = y1 + (y2 - y1) / 2;
+        const path = `M ${x1} ${y1} Q ${x1} ${midY} ${x2} ${y2}`;
+        
+        g.append('path')
+            .attr('class', className)
+            .attr('d', path)
+            .style('opacity', 0)
+            .transition()
+            .duration(800)
+            .style('opacity', 0.7);
+    } else {
+        // Straight line for marriages
+        g.append('line')
+            .attr('class', className)
+            .attr('x1', x1)
+            .attr('y1', y1)
+            .attr('x2', x2)
+            .attr('y2', y2)
+            .style('opacity', 0)
+            .transition()
+            .duration(600)
+            .style('opacity', 0.8);
+    }
+}
+
+function drawPersonNodes(layout) {
+    layout.forEach((generation, genIndex) => {
+        generation.people.forEach((person, personIndex) => {
+            const nodeGroup = g.append('g')
+                .attr('class', 'tree-node public-node')
+                .attr('data-person-id', person.id)
+                .attr('transform', `translate(${person.x}, ${person.y})`)
+                .style('opacity', 0)
+                .on('click', () => showPublicPersonInfo(person));
+            
+            // Card background
+            const cardGroup = nodeGroup.append('g')
+                .attr('class', 'person-card');
+            
+            // Determine colors based on gender
+            const colors = getPersonColors(person);
+            
+            // Main card rectangle
+            cardGroup.append('rect')
+                .attr('width', config.nodeWidth)
+                .attr('height', config.nodeHeight)
+                .attr('rx', 12)
+                .attr('fill', colors.fill)
+                .attr('stroke', colors.stroke)
+                .attr('stroke-width', 2)
+                .attr('filter', 'url(#cardShadow)');
+            
+            // Public view: No photos, just avatar
+            createPublicAvatar(cardGroup, colors, person);
+            
+            // Name only - centered vertically
+            cardGroup.append('text')
+                .attr('x', config.nodeWidth / 2)
+                .attr('y', 65)
+                .attr('text-anchor', 'middle')
+                .attr('font-family', 'Playfair Display, serif')
+                .attr('font-size', '14px')
+                .attr('font-weight', '600')
+                .attr('fill', '#1f2937')
+                .text(truncateText(person.name || 'Membre famille', 20));
+            
+            // Lock icon for private info
+            const lockGroup = cardGroup.append('g')
+                .attr('transform', `translate(${config.nodeWidth - 25}, 10)`);
+                
+            lockGroup.append('rect')
+                .attr('width', 20)
+                .attr('height', 20)
+                .attr('rx', 4)
+                .attr('fill', '#f3f4f6')
+                .attr('stroke', '#e5e7eb')
+                .attr('stroke-width', 1);
+                
+            // Use proper Feather lock icon SVG path
+            lockGroup.append('path')
+                .attr('d', 'M15 11h-1V7a4 4 0 0 0-8 0v4H5a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-7a1 1 0 0 0-1-1zM8 7a2 2 0 0 1 4 0v4H8V7z')
+                .attr('transform', 'translate(4, 4) scale(0.6)')
+                .attr('fill', '#9ca3af')
+                .attr('stroke', 'none');
+            
+            // Animate entrance
+            nodeGroup
+                .transition()
+                .delay(genIndex * 300 + personIndex * 100)
+                .duration(600)
+                .style('opacity', 1);
+        });
+    });
+}
+
+function createPublicAvatar(cardGroup, colors, person) {
+    // Default avatar circle with gender icon
+    cardGroup.append('circle')
+        .attr('cx', config.nodeWidth / 2)
+        .attr('cy', 25)
+        .attr('r', 15)
+        .attr('fill', colors.stroke)
+        .attr('stroke', 'white')
+        .attr('stroke-width', 2);
+    
+    // Gender icon using Feather user icon
+    const userIcon = cardGroup.append('g')
+        .attr('transform', `translate(${config.nodeWidth / 2 - 6}, 19)`);
+    
+    // Feather user icon SVG path
+    userIcon.append('path')
+        .attr('d', 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2')
+        .attr('fill', 'none')
+        .attr('stroke', 'white')
+        .attr('stroke-width', '1.5')
+        .attr('stroke-linecap', 'round')
+        .attr('stroke-linejoin', 'round')
+        .attr('transform', 'scale(0.5)');
+    
+    userIcon.append('circle')
+        .attr('cx', '6')
+        .attr('cy', '3.5')
+        .attr('r', '2')
+        .attr('fill', 'none')
+        .attr('stroke', 'white')
+        .attr('stroke-width', '1.5');
+}
+
+function getPersonColors(person) {
+    if (person.gender === 'M') {
+        return config.colors.male;
+    } else if (person.gender === 'F') {
+        return config.colors.female;
+    } else {
+        return config.colors.unknown;
+    }
+}
+
+function truncateText(text, maxLength) {
+    if (!text) return '';
+    return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+}
+
+function showPublicPersonInfo(person) {
+    selectedPersonId = person.id;
+    
+    document.getElementById('infoPanelName').textContent = person.name || 'Membre famille';
+    
+    let content = '';
+    
+    if (person.children && person.children.length > 0) {
+        content += `<div class="flex items-center gap-2"><i data-feather="users" class="w-4 h-4 text-amber-600"></i>${person.children.length} enfant(s)</div>`;
+    }
+    
+    // Add limited info notice
+    if (!content) {
+        content = '<div class="text-gray-400 text-sm italic">Informations limitées disponibles</div>';
+    }
+    
+    document.getElementById('infoPanelContent').innerHTML = content;
+    document.getElementById('infoPanel').classList.remove('hidden');
+    
+    feather.replace();
+}
+
+function hideInfoPanel() {
+    document.getElementById('infoPanel').classList.add('hidden');
+    selectedPersonId = null;
+}
+
+function updateStatistics(individuals, generations) {
+    document.getElementById('total-members').textContent = Object.keys(individuals).length;
+    document.getElementById('total-generations').textContent = generations.size;
+}
+
+function handleZoom(event) {
+    currentScale = event.transform.k;
+    currentTransform = { x: event.transform.x, y: event.transform.y };
+    
+    g.attr("transform", event.transform);
+    
+    document.getElementById('zoom-level').textContent = Math.round(currentScale * 100) + '%';
+}
+
+function centerTree() {
+    if (!g || !g.node()) return;
+    
+    const container = document.getElementById('treeContainer');
+    const bounds = g.node().getBBox();
+    
+    const centerX = container.clientWidth / 2 - bounds.width / 2 - bounds.x;
+    const centerY = container.clientHeight / 2 - bounds.height / 2 - bounds.y;
+    
+    const newTransform = d3.zoomIdentity.translate(centerX, centerY).scale(1);
+    
+    svg.transition().duration(750).call(
+        zoomBehavior.transform,
+        newTransform
+    );
+}
+
+function zoomIn() {
+    if (!svg || !zoomBehavior) return;
+    
+    svg.transition().duration(300).call(
+        zoomBehavior.scaleBy,
+        1.2
+    );
+}
+
+function zoomOut() {
+    if (!svg || !zoomBehavior) return;
+    
+    svg.transition().duration(300).call(
+        zoomBehavior.scaleBy,
+        0.8
+    );
+}
+
+function showError(message) {
+    document.getElementById('treeLoading').innerHTML = `
+        <div class="text-center">
+            <i data-feather="alert-circle" class="w-16 h-16 text-red-400 mx-auto mb-4"></i>
+            <p class="text-gray-600 font-medium">${message}</p>
+            <button onclick="location.reload()" class="mt-4 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition">
+                Recharger
+            </button>
+        </div>
+    `;
+    feather.replace();
+}
+
+function hideLoading() {
+    document.getElementById('treeLoading').style.display = 'none';
+}
+
+function setupEventListeners() {
+    document.getElementById('rootPersonSelect').addEventListener('change', function() {
+        if (this.value) {
+            window.location.href = `/public-tree/${this.value}/`;
+        }
+    });
+}
+</script>
+
+<!-- D3.js Library -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+
+{% endblock %}

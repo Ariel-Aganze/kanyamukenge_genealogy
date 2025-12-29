@@ -1,0 +1,40 @@
+{% extends "errors/base.html" %}
+
+{% block title %}Page introuvable - Famille KANYAMUKENGE{% endblock %}
+
+{% block error_icon %}
+<div class="mx-auto w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mb-6">
+    <i data-feather="search" class="w-12 h-12 text-blue-600"></i>
+</div>
+{% endblock %}
+
+{% block action_buttons %}
+<a href="/" class="pulse-button group bg-brand-primary text-white px-8 py-4 rounded-full font-medium hover:bg-green-800 transition shadow-lg w-full md:w-auto inline-flex items-center justify-center gap-2">
+    <i data-feather="home" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+    Retour à l'accueil
+</a>
+
+{% if user and user.is_authenticated %}
+<a href="/dashboard/" class="pulse-button group bg-brand-accent text-white px-8 py-4 rounded-full font-medium hover:bg-amber-800 transition shadow-lg w-full md:w-auto inline-flex items-center justify-center gap-2">
+    <i data-feather="layout" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+    Tableau de bord
+</a>
+{% endif %}
+
+<!-- <a href="/tree/" class="pulse-button group bg-green-600 text-white px-8 py-4 rounded-full font-medium hover:bg-green-700 transition shadow-lg w-full md:w-auto inline-flex items-center justify-center gap-2">
+    <i data-feather="users" class="w-5 h-5 transition-transform group-hover:scale-110"></i>
+    Arbre généalogique
+</a> -->
+{% endblock %}
+
+{% block extra_scripts %}
+{{ block.super }}
+<script>
+// Track 404 errors for analytics (if needed)
+console.log('404 Error tracked:', {
+    path: '{{ request_path|escapejs }}',
+    timestamp: new Date().toISOString(),
+    user: '{{ user.username|default:"anonymous"|escapejs }}'
+});
+</script>
+{% endblock %}

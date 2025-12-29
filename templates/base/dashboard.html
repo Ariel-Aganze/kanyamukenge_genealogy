@@ -1,0 +1,865 @@
+{% extends 'base/base.html' %}
+{% load static %}
+
+
+{% block body %}
+<div class="bg-brand-bg text-brand-text font-sans antialiased h-screen flex overflow-hidden">
+
+    <!-- SIDEBAR (Fixe à gauche) -->
+    <aside class="w-64 bg-brand-primary text-white flex-shrink-0 hidden md:flex flex-col shadow-2xl z-20">
+        
+        <!-- Header Sidebar -->
+        <div class="p-6 border-b border-white/10">
+            <h1 class="font-serif text-xl font-bold tracking-wide text-center leading-tight">
+                Famille<br>KANYAMUKENGE
+            </h1>
+            <!-- <p class="text-green-200/60 text-xs text-center mt-2 uppercase tracking-widest">Administration</p> -->
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+            
+            <!-- Groupe : Principal -->
+            <p class="px-3 text-xs font-medium text-green-300/70 uppercase tracking-wider mb-2 mt-2">Vue d'ensemble</p>
+            
+            <a href="{% url 'genealogy:dashboard' %}" class="group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'dashboard' %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="layout" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'dashboard' %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Tableau de bord
+            </a>
+            
+            <a href="{% url 'genealogy:family_tree' %}" class="group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if 'family_tree' in request.resolver_match.url_name %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="share-2" class="mr-3 h-5 w-5 {% if 'family_tree' in request.resolver_match.url_name %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Visualiser l'Arbre
+            </a>
+
+            <!-- Groupe : Gestion -->
+            <p class="px-3 text-xs font-medium text-green-300/70 uppercase tracking-wider mb-2 mt-6">Registre Familial</p>
+            
+            <a href="{% url 'genealogy:search' %}" class="group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'search' %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="users" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'search' %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Membres de la famille
+            </a>
+            
+            <a href="{% url 'genealogy:person_create' %}" class="group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'person_create' %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="user-plus" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'person_create' %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Ajouter un membre
+            </a>
+            
+            {% if user.role == 'admin' %}
+            <!-- Propositions -->
+            <a href="{% url 'genealogy:manage_users' %}?tab=proposals" class="group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'manage_users' and 'proposals' in request.GET.tab %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="git-pull-request" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'manage_users' and 'proposals' in request.GET.tab %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Propositions
+                {% load propositions_tags %}
+                {% get_pending_proposals_count as pending_count %}
+                {% if pending_count > 0 %}
+                <span class="ml-auto bg-brand-accent text-white py-0.5 px-2 rounded-full text-xs">{{ pending_count }}</span>
+                {% endif %}
+            </a>
+            {% endif %}
+
+            <!-- Groupe : Système -->
+            {% if user.role == 'admin' %}
+            <p class="px-3 text-xs font-medium text-green-300/70 uppercase tracking-wider mb-2 mt-6">Configuration</p>
+            
+            <a href="{% url 'genealogy:manage_users' %}" class="group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'manage_users' and not request.GET.tab %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="shield" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'manage_users' and not request.GET.tab %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Utilisateurs & Accès
+            </a>
+            
+            <a href="{% url 'genealogy:audit_log' %}" class="group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'audit_log' %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="file-text" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'audit_log' %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Journal d'audit
+            </a>
+            
+            <a href="#" class="group flex items-center px-3 py-3 text-sm font-medium rounded-lg text-green-100 hover:bg-white/5 hover:text-white transition" onclick="showGedcomModal()">
+                <i data-feather="download" class="mr-3 h-5 w-5 opacity-70"></i>
+                Export GEDCOM
+            </a>
+            {% endif %}
+            
+            <!-- Groupe : Profil -->
+            <p class="px-3 text-xs font-medium text-green-300/70 uppercase tracking-wider mb-2 mt-6">Profil</p>
+            
+            <a href="{% url 'accounts:profile' %}" class="group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'profile' %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="user" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'profile' %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Mon profil
+            </a>
+            
+            <form method="post" action="{% url 'accounts:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="w-full group flex items-center px-3 py-3 text-sm font-medium rounded-lg text-green-100 hover:bg-white/5 hover:text-white transition">
+                    <i data-feather="log-out" class="mr-3 h-5 w-5 opacity-70"></i>
+                    Se déconnecter
+                </button>
+            </form>
+        </nav>
+        
+        <!-- Profile Footer -->
+        <div class="p-4 border-t border-white/10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-brand-accent to-amber-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    {{ user.first_name.0|default:'U' }}{{ user.last_name.0|default:'U' }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-white truncate">{{ user.get_full_name }}</p>
+                    <p class="text-xs text-green-300/70 capitalize">{{ user.get_role_display }}</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- MOBILE SIDEBAR OVERLAY -->
+    <div id="mobile-sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-30 hidden md:hidden"></div>
+    
+    <!-- MOBILE SIDEBAR -->
+    <aside id="mobile-sidebar" class="fixed left-0 top-0 w-64 h-full bg-brand-primary text-white z-40 transform -translate-x-full transition-transform duration-300 md:hidden">
+        
+        <!-- Header Sidebar Mobile -->
+        <div class="p-6 border-b border-white/10 flex items-center justify-between">
+            <div class="text-center flex-1">
+                <h1 class="font-serif text-xl font-bold tracking-wide leading-tight">
+                    Famille<br>KANYAMUKENGE
+                </h1>
+                <p class="text-green-200/60 text-xs mt-2 uppercase tracking-widest">Administration</p>
+            </div>
+            <button id="mobile-menu-close" class="p-2 rounded-lg hover:bg-white/10 transition ml-4">
+                <i data-feather="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+
+        <!-- Navigation Mobile -->
+        <nav class="flex-1 overflow-y-auto py-6 px-3 space-y-1">
+            
+            <!-- Groupe : Principal -->
+            <p class="px-3 text-xs font-medium text-green-300/70 uppercase tracking-wider mb-2 mt-2">Vue d'ensemble</p>
+            
+            <a href="{% url 'genealogy:dashboard' %}" class="mobile-nav-link group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'dashboard' %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="layout" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'dashboard' %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Tableau de bord
+            </a>
+            
+            <a href="{% url 'genealogy:family_tree' %}" class="mobile-nav-link group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if 'family_tree' in request.resolver_match.url_name %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="share-2" class="mr-3 h-5 w-5 {% if 'family_tree' in request.resolver_match.url_name %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Visualiser l'Arbre
+            </a>
+
+            <!-- Groupe : Gestion -->
+            <p class="px-3 text-xs font-medium text-green-300/70 uppercase tracking-wider mb-2 mt-6">Registre Familial</p>
+            
+            <a href="{% url 'genealogy:search' %}" class="mobile-nav-link group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'search' %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="users" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'search' %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Membres de la famille
+            </a>
+            
+            <a href="{% url 'genealogy:person_create' %}" class="mobile-nav-link group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'person_create' %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="user-plus" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'person_create' %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Ajouter un membre
+            </a>
+            
+            {% if user.role == 'admin' %}
+            <!-- Propositions Mobile -->
+            <a href="{% url 'genealogy:manage_users' %}?tab=proposals" class="mobile-nav-link group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'manage_users' and 'proposals' in request.GET.tab %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="git-pull-request" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'manage_users' and 'proposals' in request.GET.tab %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Propositions
+                {% load propositions_tags %}
+                {% get_pending_proposals_count as pending_count %}
+                {% if pending_count > 0 %}
+                <span class="ml-auto bg-brand-accent text-white py-0.5 px-2 rounded-full text-xs">{{ pending_count }}</span>
+                {% endif %}
+            </a>
+            {% endif %}
+
+            <!-- Groupe : Système -->
+            {% if user.role == 'admin' %}
+            <p class="px-3 text-xs font-medium text-green-300/70 uppercase tracking-wider mb-2 mt-6">Configuration</p>
+            
+            <a href="{% url 'genealogy:manage_users' %}" class="mobile-nav-link group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'manage_users' and not request.GET.tab %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="shield" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'manage_users' and not request.GET.tab %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Utilisateurs & Accès
+            </a>
+            
+            <a href="{% url 'genealogy:audit_log' %}" class="mobile-nav-link group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'audit_log' %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="file-text" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'audit_log' %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Journal d'audit
+            </a>
+            
+            <a href="#" class="mobile-nav-link group flex items-center px-3 py-3 text-sm font-medium rounded-lg text-green-100 hover:bg-white/5 hover:text-white transition" onclick="showGedcomModal()">
+                <i data-feather="download" class="mr-3 h-5 w-5 opacity-70"></i>
+                Export GEDCOM
+            </a>
+            {% endif %}
+            
+            <!-- Groupe : Profil -->
+            <p class="px-3 text-xs font-medium text-green-300/70 uppercase tracking-wider mb-2 mt-6">Profil</p>
+            
+            <a href="{% url 'accounts:profile' %}" class="mobile-nav-link group flex items-center px-3 py-3 text-sm font-medium rounded-lg {% if request.resolver_match.url_name == 'profile' %}bg-white/10 text-white{% else %}text-green-100 hover:bg-white/5 hover:text-white{% endif %} transition">
+                <i data-feather="user" class="mr-3 h-5 w-5 {% if request.resolver_match.url_name == 'profile' %}text-brand-accent{% else %}opacity-70{% endif %}"></i>
+                Mon profil
+            </a>
+            
+            <form method="post" action="{% url 'accounts:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="w-full group flex items-center px-3 py-3 text-sm font-medium rounded-lg text-green-100 hover:bg-white/5 hover:text-white transition">
+                    <i data-feather="log-out" class="mr-3 h-5 w-5 opacity-70"></i>
+                    Se déconnecter
+                </button>
+            </form>
+        </nav>
+        
+        <!-- Profile Footer Mobile -->
+        <div class="p-4 border-t border-white/10">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-brand-accent to-amber-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                    {{ user.first_name.0|default:'U' }}{{ user.last_name.0|default:'U' }}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-white truncate">{{ user.get_full_name }}</p>
+                    <p class="text-xs text-green-300/70 capitalize">{{ user.get_role_display }}</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- CONTENU PRINCIPAL (Zone défilante) -->
+    <main class="flex-1 flex flex-col overflow-hidden bg-brand-bg">
+        
+        <!-- Header Top (Mobile + Actions) -->
+        <header class="bg-white border-b border-brand-border px-6 py-4 flex items-center justify-between shadow-sm">
+            
+            <!-- Menu Mobile (burger) + Titre dynamique -->
+            <div class="flex items-center gap-4">
+                <button id="mobile-menu-toggle" class="md:hidden p-2 rounded-lg hover:bg-gray-100 transition">
+                    <i data-feather="menu" class="w-6 h-6 text-gray-600"></i>
+                </button>
+                
+                <!-- Titre de la page dans le header -->
+                <h1 class="hidden md:block font-serif text-xl font-bold text-brand-primary">
+                    {% if request.resolver_match.url_name == 'dashboard' %}
+                        Tableau de Bord
+                    {% elif 'family_tree' in request.resolver_match.url_name %}
+                        Arbre Généalogique
+                    {% elif request.resolver_match.url_name == 'search' %}
+                        Recherche de Membres
+                    {% elif request.resolver_match.url_name == 'person_create' %}
+                        Ajouter un Membre
+                    {% elif request.resolver_match.url_name == 'manage_users' %}
+                        Gestion des Utilisateurs
+                    {% elif request.resolver_match.url_name == 'audit_log' %}
+                        Journal d'Audit
+                    {% elif request.resolver_match.url_name == 'profile' %}
+                        Mon Profil
+                    {% elif request.resolver_match.url_name == 'review_proposal' %}
+                        Examiner Proposition
+                    {% elif 'person_detail' in request.resolver_match.url_name %}
+                        Profil de {{ person.get_full_name|default:"Membre" }}
+                    {% elif 'person_edit' in request.resolver_match.url_name %}
+                        Modifier {{ person.get_full_name|default:"Membre" }}
+                    {% else %}
+                        {% block page_title %}Famille KANYAMUKENGE{% endblock %}
+                    {% endif %}
+                </h1>
+            </div>
+            
+            <!-- Actions (Notifications + Profile) -->
+            <div class="flex items-center gap-4">
+                
+                <!-- Notifications avec badge fonctionnel -->
+                <!-- <div class="relative">
+                    <button id="notifications-btn" class="p-2 rounded-lg hover:bg-gray-100 transition relative">
+                        <i data-feather="bell" class="w-5 h-5 text-gray-600"></i> -->
+                        <!-- Badge de notification -->
+                        <!-- <span id="notifications-badge" class="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-xs rounded-full flex items-center justify-center border border-white font-medium hidden">
+                            0
+                        </span>
+                    </button> -->
+                    
+                    <!-- Dropdown des notifications -->
+                    <!-- <div id="notifications-dropdown" class="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50 hidden">
+                        <div class="p-4 border-b border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-medium text-gray-900">Notifications</h3>
+                                <span id="notifications-count" class="text-xs text-gray-500">0 nouvelles</span>
+                            </div>
+                        </div>
+                        <div id="notifications-list" class="max-h-96 overflow-y-auto">
+                            <div class="p-8 text-center text-gray-500 text-sm">
+                                <i data-feather="bell-off" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                                Aucune notification
+                            </div>
+                        </div>
+                        <div class="p-3 border-t border-gray-100 text-center">
+                            <a href="#" onclick="goToNotificationsPage()" class="text-xs text-brand-primary hover:text-brand-accent transition">
+                                Voir toutes les notifications
+                            </a>
+                        </div>
+                    </div>
+                </div> -->
+                
+                <!-- Profile dropdown fonctionnel -->
+                <div class="relative">
+                    <button id="profile-btn" class="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 transition">
+                        <div class="w-8 h-8 bg-gradient-to-br from-brand-primary to-green-700 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                            {{ user.first_name.0|default:'U' }}{{ user.last_name.0|default:'U' }}
+                        </div>
+                        <span class="hidden sm:block text-sm font-medium text-gray-700">{{ user.get_full_name }}</span>
+                        <i data-feather="chevron-down" class="hidden sm:block w-4 h-4 text-gray-400"></i>
+                    </button>
+                    
+                    <!-- Profile dropdown menu -->
+                    <div id="profile-dropdown" class="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50 hidden">
+                        <div class="p-3 border-b border-gray-100">
+                            <p class="text-sm font-medium text-gray-900">{{ user.get_full_name }}</p>
+                            <p class="text-xs text-gray-500">{{ user.email }}</p>
+                        </div>
+                        <div class="py-2">
+                            <a href="{% url 'accounts:profile' %}" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
+                                <i data-feather="user" class="w-4 h-4"></i>
+                                Mon profil
+                            </a>
+                            <!-- <a href="#" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
+                                <i data-feather="settings" class="w-4 h-4"></i>
+                                Préférences
+                            </a> -->
+                        </div>
+                        <div class="border-t border-gray-100 py-2">
+                            <form method="post" action="{% url 'accounts:logout' %}" class="block">
+                                {% csrf_token %}
+                                <button type="submit" class="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition text-left">
+                                    <i data-feather="log-out" class="w-4 h-4"></i>
+                                    Se déconnecter
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Zone de contenu scrollable -->
+        <div class="flex-1 overflow-y-auto p-6">
+            
+            <!-- Messages Django (si présents) -->
+            {% if messages %}
+            <div class="mb-6 space-y-3">
+                {% for message in messages %}
+                <div class="alert-{{ message.tags }} px-4 py-3 rounded-lg border flex items-center gap-3
+                    {% if message.tags == 'success' %}bg-green-50 border-green-200 text-green-800{% elif message.tags == 'error' %}bg-red-50 border-red-200 text-red-800{% elif message.tags == 'warning' %}bg-yellow-50 border-yellow-200 text-yellow-800{% else %}bg-blue-50 border-blue-200 text-blue-800{% endif %}">
+                    <i data-feather="{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}alert-circle{% elif message.tags == 'warning' %}alert-triangle{% else %}info{% endif %}" class="w-5 h-5 flex-shrink-0"></i>
+                    <span>{{ message }}</span>
+                    <button class="ml-auto text-current opacity-70 hover:opacity-100" onclick="this.parentElement.style.display='none'">
+                        <i data-feather="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <!-- Contenu de la page -->
+            {% block dashboard_content %}
+            <!-- Contenu spécifique à chaque page -->
+            {% endblock %}
+        </div>
+    </main>
+</div>
+
+<!-- Modal GEDCOM (si nécessaire) -->
+<div id="gedcomModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl max-w-md w-full p-6">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <i data-feather="download" class="w-6 h-6 text-green-600"></i>
+            </div>
+            <div>
+                <h3 class="font-serif text-lg font-bold text-gray-900">Export GEDCOM</h3>
+                <p class="text-sm text-gray-600">Télécharger l'arbre généalogique</p>
+            </div>
+        </div>
+        
+        <p class="text-gray-700 mb-6">
+            Voulez-vous exporter l'intégralité de l'arbre généalogique au format GEDCOM ? 
+            Ce fichier pourra être importé dans d'autres logiciels de généalogie.
+        </p>
+        
+        <div class="flex gap-3">
+            <a href="{% url 'genealogy:export_gedcom' %}" 
+               class="flex-1 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition text-center">
+                Télécharger
+            </a>
+            <button onclick="hideGedcomModal()" 
+                    class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition">
+                Annuler
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== ADD SESSION MANAGEMENT CODE HERE ==================== -->
+{% if user.is_authenticated %}
+<!-- Session Management Scripts and Styles -->
+<style>
+    /* Session Warning Modal Styles */
+    #session-warning-modal {
+        backdrop-filter: blur(4px);
+    }
+    
+    #session-warning-modal .session-modal-content {
+        animation: sessionModalSlideIn 0.3s ease-out;
+    }
+    
+    @keyframes sessionModalSlideIn {
+        from {
+            opacity: 0;
+            transform: scale(0.9) translateY(-10px);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+        }
+    }
+    
+    .session-countdown {
+        font-family: 'Courier New', monospace;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    
+    /* Session status indicator */
+    .session-status-indicator {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+        display: none;
+    }
+    
+    .session-status-indicator.show {
+        display: block;
+        animation: fadeInUp 0.3s ease-out;
+    }
+    
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>
+
+<!-- Session Status Indicator (Optional) -->
+<!-- <div id="session-status-indicator" class="session-status-indicator">
+    <div class="bg-white border border-gray-200 rounded-lg shadow-lg p-3 min-w-[200px]">
+        <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-700">Session:</span>
+            <span id="session-time-display" class="text-sm font-mono text-green-600">--:--</span>
+        </div>
+        <div class="mt-1">
+            <div class="h-1 bg-gray-200 rounded-full overflow-hidden">
+                <div id="session-progress-bar" class="h-full bg-green-500 transition-all duration-1000" style="width: 100%"></div>
+            </div>
+        </div>
+    </div>
+</div> -->
+
+<!-- Session Management JavaScript -->
+<script>
+// Session configuration from Django settings
+window.sessionConfig = {
+    checkInterval: 30000, // 30 seconds
+    warningTime: {{ settings.SESSION_WARNING_SECONDS|default:300 }}, // From Django settings
+    autoExtend: {{ settings.SESSION_AUTO_EXTEND|default:False|yesno:"true,false" }}, // From Django settings
+    endpoints: {
+        check: '{% url "accounts:session_check" %}',
+        extend: '{% url "accounts:extend_session" %}',
+        logout: '{% url "accounts:logout" %}'
+    },
+    user: {
+        role: '{{ user.role|default:"user" }}',
+        isAdmin: {% if user.role == 'admin' %}true{% else %}false{% endif %}
+    }
+};
+
+// Enhanced session manager initialization
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.sessionConfig) {
+        console.log('🔐 Initializing Session Manager with config:', window.sessionConfig);
+        
+        // Initialize session manager with Django configuration
+        window.sessionManager = new SessionManager(window.sessionConfig);
+        
+        // Add admin-specific features
+        // if (window.sessionConfig.user.isAdmin) {
+        //     // Admins get a session status indicator
+        //     showSessionStatusIndicator();
+        // }
+        
+        // Add keyboard shortcuts for session management
+        document.addEventListener('keydown', function(e) {
+            // Ctrl+Shift+E to extend session
+            if (e.ctrlKey && e.shiftKey && e.key === 'E') {
+                e.preventDefault();
+                if (window.sessionManager) {
+                    window.sessionManager.extendSession();
+                }
+            }
+            
+            // Ctrl+Shift+L to logout
+            if (e.ctrlKey && e.shiftKey && e.key === 'L') {
+                e.preventDefault();
+                if (confirm('Êtes-vous sûr de vouloir vous déconnecter ?')) {
+                    window.location.href = window.sessionConfig.endpoints.logout;
+                }
+            }
+        });
+    }
+});
+
+// Session status indicator functionality
+function showSessionStatusIndicator() {
+    const indicator = document.getElementById('session-status-indicator');
+    const timeDisplay = document.getElementById('session-time-display');
+    const progressBar = document.getElementById('session-progress-bar');
+    
+    if (!indicator) return;
+    
+    // Show indicator for admins
+    indicator.classList.add('show');
+    
+    // Update display every 30 seconds
+    setInterval(async function() {
+        try {
+            const response = await fetch(window.sessionConfig.endpoints.check);
+            const data = await response.json();
+            
+            if (data.status === 'active' || data.status === 'warning') {
+                const remaining = data.time_remaining || 0;
+                const minutes = Math.floor(remaining / 60);
+                const seconds = remaining % 60;
+                
+                timeDisplay.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                
+                // Update progress bar
+                const totalTime = 7200; // 2 hours default
+                const percentage = (remaining / totalTime) * 100;
+                progressBar.style.width = `${Math.max(0, percentage)}%`;
+                
+                // Change color based on time remaining
+                if (remaining <= 300) { // 5 minutes
+                    progressBar.className = 'h-full bg-red-500 transition-all duration-1000';
+                    timeDisplay.className = 'text-sm font-mono text-red-600';
+                } else if (remaining <= 900) { // 15 minutes
+                    progressBar.className = 'h-full bg-yellow-500 transition-all duration-1000';
+                    timeDisplay.className = 'text-sm font-mono text-yellow-600';
+                } else {
+                    progressBar.className = 'h-full bg-green-500 transition-all duration-1000';
+                    timeDisplay.className = 'text-sm font-mono text-green-600';
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to update session status indicator:', error);
+        }
+    }, 30000);
+}
+
+// Global session utilities
+window.sessionUtils = {
+    extendSession: function() {
+        if (window.sessionManager) {
+            return window.sessionManager.extendSession();
+        }
+    },
+    
+    checkStatus: function() {
+        if (window.sessionManager) {
+            return window.sessionManager.checkSessionStatus();
+        }
+    },
+    
+    showTimeRemaining: function() {
+        if (window.sessionManager) {
+            window.sessionManager.checkSessionStatus();
+        }
+    }
+};
+
+// Add session management to window for debugging
+if (window.sessionConfig?.user?.isAdmin) {
+    window.sessionDebug = {
+        config: window.sessionConfig,
+        manager: () => window.sessionManager,
+        utils: window.sessionUtils
+    };
+}
+</script>
+
+<!-- Load session manager JavaScript -->
+<script src="{% static 'js/session-manager.js' %}"></script>
+
+<!-- Add data attributes for JavaScript detection -->
+<script>
+document.body.setAttribute('data-authenticated', 'true');
+document.body.setAttribute('data-user-role', '{{ user.role|default:"user" }}');
+</script>
+
+<!-- Session management is now active for authenticated users -->
+<noscript>
+    <div class="fixed top-0 left-0 right-0 bg-red-600 text-white text-center p-2 z-50">
+        JavaScript est requis pour la gestion automatique des sessions. Veuillez l'activer.
+    </div>
+</noscript>
+{% endif %}
+<!-- ==================== END SESSION MANAGEMENT CODE ==================== -->
+
+<script>
+// Remplacer les icônes Feather
+document.addEventListener('DOMContentLoaded', function() {
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    // Initialize notifications and profile dropdowns
+    initializeDropdowns();
+    loadNotifications();
+});
+
+// Initialize dropdown functionality
+function initializeDropdowns() {
+    // Profile dropdown
+    const profileBtn = document.getElementById('profile-btn');
+    const profileDropdown = document.getElementById('profile-dropdown');
+    
+    if (profileBtn && profileDropdown) {
+        profileBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            profileDropdown.classList.toggle('hidden');
+            // Close notifications dropdown if open
+            const notificationsDropdown = document.getElementById('notifications-dropdown');
+            if (notificationsDropdown) {
+                notificationsDropdown.classList.add('hidden');
+            }
+        });
+    }
+    
+    // Notifications dropdown
+    const notificationsBtn = document.getElementById('notifications-btn');
+    const notificationsDropdown = document.getElementById('notifications-dropdown');
+    
+    if (notificationsBtn && notificationsDropdown) {
+        notificationsBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            notificationsDropdown.classList.toggle('hidden');
+            // Close profile dropdown if open
+            if (profileDropdown) {
+                profileDropdown.classList.add('hidden');
+            }
+            
+            // Mark notifications as read when opening
+            if (!notificationsDropdown.classList.contains('hidden')) {
+                markNotificationsAsRead();
+            }
+        });
+    }
+    
+    // Close dropdowns when clicking outside
+    document.addEventListener('click', function() {
+        if (profileDropdown) profileDropdown.classList.add('hidden');
+        if (notificationsDropdown) notificationsDropdown.classList.add('hidden');
+    });
+    
+    // Prevent dropdown closing when clicking inside
+    if (profileDropdown) {
+        profileDropdown.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+    
+    if (notificationsDropdown) {
+        notificationsDropdown.addEventListener('click', function(e) {
+            e.stopPropagation();
+        });
+    }
+}
+
+// Load and display notifications
+function loadNotifications() {
+    // Initialize empty notifications - will be populated from backend
+    const notifications = [];
+    
+    updateNotificationsBadge(notifications);
+    renderNotifications(notifications);
+    
+    // TODO: Replace with actual API call to load notifications
+    // fetchNotifications().then(notifications => {
+    //     updateNotificationsBadge(notifications);
+    //     renderNotifications(notifications);
+    // });
+}
+
+// Update notifications badge
+function updateNotificationsBadge(notifications) {
+    const badge = document.getElementById('notifications-badge');
+    const count = document.getElementById('notifications-count');
+    
+    const unreadCount = notifications.filter(n => !n.read).length;
+    
+    if (badge) {
+        if (unreadCount > 0) {
+            badge.textContent = unreadCount > 99 ? '99+' : unreadCount.toString();
+            badge.classList.remove('hidden');
+        } else {
+            badge.classList.add('hidden');
+        }
+    }
+    
+    if (count) {
+        count.textContent = unreadCount > 0 ? `${unreadCount} nouvelle${unreadCount > 1 ? 's' : ''}` : 'Aucune nouvelle';
+    }
+}
+
+// Render notifications in dropdown
+function renderNotifications(notifications) {
+    const notificationsList = document.getElementById('notifications-list');
+    
+    if (!notificationsList) return;
+    
+    if (notifications.length === 0) {
+        notificationsList.innerHTML = `
+            <div class="p-8 text-center text-gray-500 text-sm">
+                <i data-feather="bell-off" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                <p class="mb-2">Aucune notification</p>
+                <p class="text-xs">Vous serez notifié des nouvelles activités</p>
+            </div>
+        `;
+    } else {
+        notificationsList.innerHTML = notifications.map(notification => `
+            <div class="notification-item p-4 border-b border-gray-50 hover:bg-gray-50 cursor-pointer ${!notification.read ? 'bg-blue-50' : ''}" 
+                 data-notification-id="${notification.id}">
+                <div class="flex items-start gap-3">
+                    <div class="w-8 h-8 rounded-full flex items-center justify-center ${getNotificationIconColor(notification.type)}">
+                        <i data-feather="${notification.icon}" class="w-4 h-4"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900">${notification.title}</p>
+                        <p class="text-xs text-gray-600 mt-1">${notification.message}</p>
+                        <p class="text-xs text-gray-500 mt-1">${notification.time}</p>
+                    </div>
+                    ${!notification.read ? '<div class="w-2 h-2 bg-blue-500 rounded-full mt-2"></div>' : ''}
+                </div>
+            </div>
+        `).join('');
+    }
+    
+    // Re-replace feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    // Add click handlers for notifications
+    const notificationItems = notificationsList.querySelectorAll('.notification-item');
+    notificationItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const notificationId = this.dataset.notificationId;
+            handleNotificationClick(notificationId);
+        });
+    });
+}
+
+// Get notification icon color based on type
+function getNotificationIconColor(type) {
+    switch (type) {
+        case 'proposal': return 'bg-yellow-100 text-yellow-600';
+        case 'user': return 'bg-blue-100 text-blue-600';
+        case 'system': return 'bg-green-100 text-green-600';
+        default: return 'bg-gray-100 text-gray-600';
+    }
+}
+
+// Handle notification click
+function handleNotificationClick(notificationId) {
+    // TODO: Implement navigation based on notification type
+    console.log('Notification clicked:', notificationId);
+    
+    // For now, close the dropdown and navigate to notifications page
+    document.getElementById('notifications-dropdown').classList.add('hidden');
+    goToNotificationsPage();
+}
+
+// Navigate to notifications page
+function goToNotificationsPage() {
+    // TODO: Replace with actual notifications page URL when created
+    // window.location.href = "{% url 'genealogy:manage_users' %}";
+    console.log('Navigate to notifications page - URL to be implemented');
+    
+    // For now, close the dropdown
+    document.getElementById('notifications-dropdown').classList.add('hidden');
+}
+
+// Mark notifications as read
+function markNotificationsAsRead() {
+    // Implement API call to mark notifications as read
+    const badge = document.getElementById('notifications-badge');
+    const count = document.getElementById('notifications-count');
+    
+    if (badge) badge.classList.add('hidden');
+    if (count) count.textContent = 'Aucune nouvelle';
+    
+    // Remove unread indicators from notification items
+    const unreadIndicators = document.querySelectorAll('.notification-item .bg-blue-500');
+    unreadIndicators.forEach(indicator => indicator.remove());
+    
+    const unreadBgs = document.querySelectorAll('.notification-item.bg-blue-50');
+    unreadBgs.forEach(bg => bg.classList.remove('bg-blue-50'));
+}
+
+// Mobile Menu Management
+document.getElementById('mobile-menu-toggle').addEventListener('click', function() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    const overlay = document.getElementById('mobile-sidebar-overlay');
+    
+    sidebar.classList.remove('-translate-x-full');
+    overlay.classList.remove('hidden');
+    document.body.style.overflow = 'hidden';
+});
+
+document.getElementById('mobile-menu-close').addEventListener('click', closeMobileMenu);
+document.getElementById('mobile-sidebar-overlay').addEventListener('click', closeMobileMenu);
+
+// Close mobile menu when clicking nav links
+document.querySelectorAll('.mobile-nav-link').forEach(link => {
+    link.addEventListener('click', closeMobileMenu);
+});
+
+function closeMobileMenu() {
+    const sidebar = document.getElementById('mobile-sidebar');
+    const overlay = document.getElementById('mobile-sidebar-overlay');
+    
+    sidebar.classList.add('-translate-x-full');
+    overlay.classList.add('hidden');
+    document.body.style.overflow = '';
+}
+
+// Modal GEDCOM
+function showGedcomModal() {
+    document.getElementById('gedcomModal').classList.remove('hidden');
+}
+
+function hideGedcomModal() {
+    document.getElementById('gedcomModal').classList.add('hidden');
+}
+
+// Auto-hide alerts after 5 seconds
+document.addEventListener('DOMContentLoaded', function() {
+    const alerts = document.querySelectorAll('[class*="alert-"]');
+    alerts.forEach(alert => {
+        setTimeout(() => {
+            alert.style.opacity = '0';
+            setTimeout(() => alert.style.display = 'none', 300);
+        }, 5000);
+    });
+});
+</script>
+
+{% endblock %}
