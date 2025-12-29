@@ -1,45 +1,50 @@
+"""
+URL configuration for kanyamukenge_project project.
+CORRECTED VERSION - Fixes static file serving conflicts with WhiteNoise
+
+Key fixes:
+1. Removed conflicting static file serving that interferes with WhiteNoise
+2. Simplified static file handling
+3. Proper media file serving for all environments
+"""
+
 from django.contrib import admin
 from django.urls import path, include
-from django.conf import settings
-from django.conf.urls.static import static
 from django.views.generic import RedirectView
 from django.http import HttpResponse
-from django.views.decorators.http import require_GET
-from django.views.static import serve
+from django.conf import settings
+from django.conf.urls.static import static
 import os
 
+# Custom error view imports
+from kanyamukenge_project import views
+
 # ======================================================================
-# robots.txt view
+# Robots.txt view
 # ======================================================================
-@require_GET
 def robots_txt(request):
     lines = [
         "User-Agent: *",
         "Disallow: /admin/",
         "Disallow: /accounts/",
-        "Disallow: /media/",
-        "Disallow: /dashboard/",
-        "Disallow: /genealogy/",
-        "",
-        "# Plateforme privée - Famille KANYAMUKENGE",
-        "# Accès restreint aux membres de la famille uniquement",
+        f"Sitemap: {request.build_absolute_uri('/sitemap.xml')}"
     ]
     return HttpResponse("\n".join(lines), content_type="text/plain")
 
 # ======================================================================
-# URL patterns
+# Main URL patterns
 # ======================================================================
+
 urlpatterns = [
     # ----------------------------
     # Admin
     # ----------------------------
-    path(settings.ADMIN_URL, admin.site.urls),
-    path('admin/', RedirectView.as_view(url='/' + settings.ADMIN_URL, permanent=True)),
+    path(f'{settings.ADMIN_URL}', admin.site.urls),
 
     # ----------------------------
-    # Main app: genealogy
+    # Main app
     # ----------------------------
-    path('', include('genealogy.urls')),  # Home, dashboard, tree, search, etc.
+    path('', include('genealogy.urls')),
 
     # ----------------------------
     # Accounts
@@ -61,38 +66,43 @@ urlpatterns = [
 ]
 
 # ======================================================================
-# Serve static and media files
+# Media files serving - ALWAYS needed for file uploads
 # ======================================================================
 
-# Always serve media files
+# Always serve media files (user uploads)
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 
-# Serve static files in development OR when DEBUG=False for testing error pages
-if settings.DEBUG or os.environ.get('FORCE_SERVE_STATIC'):
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-    
-    # If STATIC_ROOT doesn't exist or is empty, serve from STATICFILES_DIRS
-    if not os.path.exists(settings.STATIC_ROOT) or not os.listdir(settings.STATIC_ROOT):
-        # Serve directly from static directories
-        for static_dir in settings.STATICFILES_DIRS:
-            if os.path.exists(static_dir):
-                urlpatterns += [
-                    path('static/<path:path>', serve, {
-                        'document_root': static_dir,
-                    }),
-                ]
+# ======================================================================
+# Static files serving - SIMPLIFIED for WhiteNoise compatibility
+# ======================================================================
 
-# Development tools
+# WhiteNoise handles static files automatically in production
+# Only add manual serving for development if absolutely necessary
 if settings.DEBUG:
+    # In development, Django's runserver handles static files automatically
+    # WhiteNoise with WHITENOISE_USE_FINDERS=True also handles this
+    # No manual static file serving needed - WhiteNoise handles it
+    pass
+
+# ======================================================================
+# Development tools
+# ======================================================================
+
+if settings.DEBUG:
+    # Django Debug Toolbar
     if 'debug_toolbar' in settings.INSTALLED_APPS:
-        import debug_toolbar
-        urlpatterns = [
-            path('__debug__/', include(debug_toolbar.urls)),
-        ] + urlpatterns
+        try:
+            import debug_toolbar
+            urlpatterns = [
+                path('__debug__/', include(debug_toolbar.urls)),
+            ] + urlpatterns
+        except ImportError:
+            pass
 
 # ======================================================================
 # Custom error handlers
 # ======================================================================
+
 handler400 = 'kanyamukenge_project.views.custom_400_view'
 handler403 = 'kanyamukenge_project.views.custom_403_view'
 handler404 = 'kanyamukenge_project.views.custom_404_view'
@@ -101,6 +111,7 @@ handler500 = 'kanyamukenge_project.views.custom_500_view'
 # ======================================================================
 # Django admin customization
 # ======================================================================
+
 admin.site.site_header = "Administration - Famille KANYAMUKENGE"
 admin.site.site_title = "Famille KANYAMUKENGE"
 admin.site.index_title = "Gestion de la plateforme généalogique"
