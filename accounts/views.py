@@ -1,4 +1,5 @@
 import logging
+import threading
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
@@ -173,7 +174,8 @@ def send_invitation(request):
             invitation.save()
             
             # Send invitation email
-            send_invitation_email(invitation)
+            send_invitation_email_async(invitation)
+
             
             messages.success(request, f'Invitation envoyée à {invitation.email}.')
             return redirect('genealogy:manage_users')
@@ -457,17 +459,19 @@ def send_otp_email(user, token):
     )
 
 
-def send_invitation_email(invitation):
-    """Send invitation email to new family member with graceful error handling"""
+def send_invitation_email_async(invitation):
+    """Send invitation email in background thread to avoid blocking request"""
     
-    try:
-        # Build the registration URL
-        base_url = f"https://{settings.ALLOWED_HOSTS[0]}" if settings.ALLOWED_HOSTS else "http://localhost:8000"
-        registration_url = f"{base_url}{reverse('accounts:register', kwargs={'token': invitation.token})}"
-        
-        subject = 'Invitation - Famille KANYAMUKENGE'
-        
-        message = f"""
+    def send_email_background():
+        """Background function to send email"""
+        try:
+            # Build the registration URL
+            base_url = f"https://{settings.ALLOWED_HOSTS[0]}" if settings.ALLOWED_HOSTS else "http://localhost:8000"
+            registration_url = f"{base_url}{reverse('accounts:register', kwargs={'token': invitation.token})}"
+            
+            subject = 'Invitation - Famille KANYAMUKENGE'
+            
+            message = f"""
 Bonjour,
 
 Vous êtes invité(e) à rejoindre l'arbre généalogique de la famille KANYAMUKENGE par {invitation.invited_by.get_full_name()}.
@@ -481,31 +485,29 @@ Si vous avez des questions, contactez {invitation.invited_by.get_full_name()} à
 
 Cordialement,
 La famille KANYAMUKENGE
-        """.strip()
-        
-        # Attempt to send email with timeout and graceful failure
-        send_mail(
-            subject,
-            message,
-            settings.DEFAULT_FROM_EMAIL,
-            [invitation.email],
-            fail_silently=True,  # Don't raise exceptions on failure
-        )
-        
-        # Log successful email sending
-        logger.info(f"✅ Invitation email sent successfully to {invitation.email}")
-        return True
-        
-    except Exception as e:
-        # Log the error but don't crash the application
-        logger.error(f"❌ Failed to send invitation email to {invitation.email}: {str(e)}")
-        
-        # You could also store this failure in the database for admin review
-        # invitation.email_sent = False
-        # invitation.email_error = str(e)
-        # invitation.save()
-        
-        return False
+            """.strip()
+            
+            # Send email (this can take time, but won't block the web request)
+            send_mail(
+                subject,
+                message,
+                settings.DEFAULT_FROM_EMAIL,
+                [invitation.email],
+                fail_silently=True
+            )
+            
+            logger.info(f"✅ Invitation email sent successfully to {invitation.email}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to send invitation email to {invitation.email}: {str(e)}")
+    
+    # Start email sending in background thread
+    email_thread = threading.Thread(target=send_email_background)
+    email_thread.daemon = True  # Dies when main thread dies
+    email_thread.start()
+    
+    logger.info(f"📧 Email sending started in background for {invitation.email}")
+    return True  # Return immediately
     
 
 
