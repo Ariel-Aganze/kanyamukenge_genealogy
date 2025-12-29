@@ -490,7 +490,6 @@ La famille KANYAMUKENGE
             settings.DEFAULT_FROM_EMAIL,
             [invitation.email],
             fail_silently=True,  # Don't raise exceptions on failure
-            timeout=15  # 15 second timeout to prevent worker timeouts
         )
         
         # Log successful email sending
