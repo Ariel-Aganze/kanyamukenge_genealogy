@@ -1,3 +1,4 @@
+import logging
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
@@ -19,6 +20,9 @@ from .forms import (
     UserRegistrationForm, LoginForm, AdminOTPForm, 
     InvitationForm, ProfileUpdateForm
 )
+
+logger = logging.getLogger(__name__)
+
 
 def login_view(request):
     """Handle user login with OTP for admins"""
@@ -454,33 +458,56 @@ def send_otp_email(user, token):
 
 
 def send_invitation_email(invitation):
-    """Send invitation email to new family member"""
-    subject = 'Invitation - Famille KANYAMUKENGE'
-    registration_url = f"{settings.ALLOWED_HOSTS[0]}{reverse('accounts:register', kwargs={'token': invitation.token})}"
+    """Send invitation email to new family member with graceful error handling"""
     
-    message = f"""
-    Bonjour,
+    try:
+        # Build the registration URL
+        base_url = f"https://{settings.ALLOWED_HOSTS[0]}" if settings.ALLOWED_HOSTS else "http://localhost:8000"
+        registration_url = f"{base_url}{reverse('accounts:register', kwargs={'token': invitation.token})}"
+        
+        subject = 'Invitation - Famille KANYAMUKENGE'
+        
+        message = f"""
+Bonjour,
+
+Vous êtes invité(e) à rejoindre l'arbre généalogique de la famille KANYAMUKENGE par {invitation.invited_by.get_full_name()}.
+
+Pour créer votre compte et accéder à l'arbre familial, cliquez sur le lien ci-dessous:
+{registration_url}
+
+Cette invitation expire le {invitation.expires_at.strftime('%d/%m/%Y à %H:%M')}.
+
+Si vous avez des questions, contactez {invitation.invited_by.get_full_name()} à l'adresse: {invitation.invited_by.email}
+
+Cordialement,
+La famille KANYAMUKENGE
+        """.strip()
+        
+        # Attempt to send email with timeout and graceful failure
+        send_mail(
+            subject,
+            message,
+            settings.DEFAULT_FROM_EMAIL,
+            [invitation.email],
+            fail_silently=True,  # Don't raise exceptions on failure
+            timeout=15  # 15 second timeout to prevent worker timeouts
+        )
+        
+        # Log successful email sending
+        logger.info(f"✅ Invitation email sent successfully to {invitation.email}")
+        return True
+        
+    except Exception as e:
+        # Log the error but don't crash the application
+        logger.error(f"❌ Failed to send invitation email to {invitation.email}: {str(e)}")
+        
+        # You could also store this failure in the database for admin review
+        # invitation.email_sent = False
+        # invitation.email_error = str(e)
+        # invitation.save()
+        
+        return False
     
-    Vous êtes invité(e) à rejoindre l'arbre généalogique de la famille KANYAMUKENGE par {invitation.invited_by.get_full_name()}.
-    
-    Pour créer votre compte et accéder à l'arbre familial, cliquez sur le lien ci-dessous:
-    {registration_url}
-    
-    Cette invitation expire le {invitation.expires_at.strftime('%d/%m/%Y à %H:%M')}.
-    
-    Si vous avez des questions, contactez {invitation.invited_by.get_full_name()} à l'adresse: {invitation.invited_by.email}
-    
-    Cordialement,
-    La famille KANYAMUKENGE
-    """
-    
-    send_mail(
-        subject,
-        message,
-        settings.DEFAULT_FROM_EMAIL,
-        [invitation.email],
-        fail_silently=False,
-    )
 
 
 def send_welcome_email(user):
