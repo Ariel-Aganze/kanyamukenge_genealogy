@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 def login_view(request):
-    """Handle user login with OTP for admins"""
+    """Handle user login - ADMINS LOGIN DIRECTLY WITHOUT OTP"""
     if request.user.is_authenticated:
         return redirect('genealogy:dashboard')
     
@@ -37,106 +37,109 @@ def login_view(request):
         if form.is_valid():
             user = form.get_user()
             
-            # Check if user is admin - require OTP
-            if user.role == 'admin':
-                # Generate and send OTP
-                otp = OTPToken.objects.create(user=user)
-                
-                # Send OTP email with improved error handling
-                email_sent = send_otp_email(user, otp.token)
-                
-                if email_sent:
-                    # Store user ID in session for OTP verification
-                    request.session['otp_user_id'] = user.id
-                    messages.success(request, 'Un code de vérification a été envoyé à votre email.')
-                    return redirect('accounts:otp_verify')
-                else:
-                    # Email failed, show error and allow retry
-                    messages.error(request, 'Erreur lors de l\'envoi du code. Veuillez réessayer ou contacter l\'administrateur.')
-                    # Delete the unused OTP token
-                    otp.delete()
-            else:
-                # Regular login for non-admin users
-                login(request, user)
-                return redirect('genealogy:dashboard')
+            # Direct login for all users (including admins)
+            login(request, user)
+            
+            # Log the successful login
+            logger.info(f"User {user.get_full_name()} logged in successfully from IP: {request.META.get('REMOTE_ADDR', 'Unknown')}")
+            
+            # Create welcome notification for user
+            from genealogy.notification_utils import create_notification
+            from django.urls import reverse
+            
+            try:
+                create_notification(
+                    recipients=[user],
+                    notification_type='system_alert',
+                    title='Connexion réussie',
+                    message=f'Vous vous êtes connecté avec succès le {timezone.now().strftime("%d/%m/%Y à %H:%M")}.',
+                    action_url=reverse('genealogy:dashboard'),
+                    priority='low',
+                    expires_in_days=7
+                )
+            except Exception as e:
+                logger.error(f"Failed to create login notification: {str(e)}")
+            
+            messages.success(request, f'Bienvenue, {user.get_full_name()}!')
+            return redirect('genealogy:dashboard')
     else:
         form = LoginForm()
     
     return render(request, 'accounts/login.html', {'form': form})
 
 
-def otp_verify(request):
-    """Verify OTP for admin users"""
-    user_id = request.session.get('otp_user_id')
-    if not user_id:
-        messages.error(request, 'Session expirée. Veuillez vous reconnecter.')
-        return redirect('accounts:login')
+# def otp_verify(request):
+#     """Verify OTP for admin users"""
+#     user_id = request.session.get('otp_user_id')
+#     if not user_id:
+#         messages.error(request, 'Session expirée. Veuillez vous reconnecter.')
+#         return redirect('accounts:login')
     
-    user = get_object_or_404(User, id=user_id)
+#     user = get_object_or_404(User, id=user_id)
     
-    if request.method == 'POST':
-        form = AdminOTPForm(user=user, data=request.POST)
-        if form.is_valid():
-            token = form.cleaned_data['otp_token']
+#     if request.method == 'POST':
+#         form = AdminOTPForm(user=user, data=request.POST)
+#         if form.is_valid():
+#             token = form.cleaned_data['otp_token']
             
-            try:
-                otp = OTPToken.objects.get(
-                    user=user,
-                    token=token,
-                    is_used=False
-                )
+#             try:
+#                 otp = OTPToken.objects.get(
+#                     user=user,
+#                     token=token,
+#                     is_used=False
+#                 )
                 
-                if otp.is_valid():
-                    # Mark OTP as used
-                    otp.is_used = True
-                    otp.save()
+#                 if otp.is_valid():
+#                     # Mark OTP as used
+#                     otp.is_used = True
+#                     otp.save()
                     
-                    # Clear session
-                    del request.session['otp_user_id']
+#                     # Clear session
+#                     del request.session['otp_user_id']
                     
-                    # Login user
-                    login(request, user)
-                    messages.success(request, 'Connexion réussie.')
-                    return redirect('genealogy:dashboard')
-                else:
-                    messages.error(request, 'Le code OTP a expiré.')
-            except OTPToken.DoesNotExist:
-                messages.error(request, 'Code OTP invalide.')
-    else:
-        form = AdminOTPForm(user=user)
+#                     # Login user
+#                     login(request, user)
+#                     messages.success(request, 'Connexion réussie.')
+#                     return redirect('genealogy:dashboard')
+#                 else:
+#                     messages.error(request, 'Le code OTP a expiré.')
+#             except OTPToken.DoesNotExist:
+#                 messages.error(request, 'Code OTP invalide.')
+#     else:
+#         form = AdminOTPForm(user=user)
     
-    return render(request, 'accounts/otp_verify.html', {
-        'form': form,
-        'user': user
-    })
+#     return render(request, 'accounts/otp_verify.html', {
+#         'form': form,
+#         'user': user
+#     })
 
 
-def resend_otp(request):
-    """Resend OTP code to admin user with improved error handling"""
-    user_id = request.session.get('otp_user_id')
-    if not user_id:
-        messages.error(request, 'Session expirée. Veuillez vous reconnecter.')
-        return redirect('accounts:login')
+# def resend_otp(request):
+#     """Resend OTP code to admin user with improved error handling"""
+#     user_id = request.session.get('otp_user_id')
+#     if not user_id:
+#         messages.error(request, 'Session expirée. Veuillez vous reconnecter.')
+#         return redirect('accounts:login')
     
-    user = get_object_or_404(User, id=user_id)
+#     user = get_object_or_404(User, id=user_id)
     
-    # Invalidate old OTP tokens
-    OTPToken.objects.filter(user=user, is_used=False).update(is_used=True)
+#     # Invalidate old OTP tokens
+#     OTPToken.objects.filter(user=user, is_used=False).update(is_used=True)
     
-    # Generate new OTP
-    otp = OTPToken.objects.create(user=user)
+#     # Generate new OTP
+#     otp = OTPToken.objects.create(user=user)
     
-    # Send OTP email with improved error handling
-    email_sent = send_otp_email(user, otp.token)
+#     # Send OTP email with improved error handling
+#     email_sent = send_otp_email(user, otp.token)
     
-    if email_sent:
-        messages.success(request, 'Un nouveau code de vérification a été envoyé.')
-    else:
-        messages.error(request, 'Erreur lors de l\'envoi du code. Veuillez contacter l\'administrateur.')
-        # Delete the unused OTP token
-        otp.delete()
+#     if email_sent:
+#         messages.success(request, 'Un nouveau code de vérification a été envoyé.')
+#     else:
+#         messages.error(request, 'Erreur lors de l\'envoi du code. Veuillez contacter l\'administrateur.')
+#         # Delete the unused OTP token
+#         otp.delete()
     
-    return redirect('accounts:otp_verify')
+#     return redirect('accounts:otp_verify')
 
 
 def register(request, token):

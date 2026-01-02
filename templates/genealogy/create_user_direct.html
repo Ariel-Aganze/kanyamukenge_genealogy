@@ -1,0 +1,321 @@
+{% extends 'base/dashboard.html' %}
+{% load static %}
+
+{% block title %}Créer un utilisateur - Famille KANYAMUKENGE{% endblock %}
+
+{% block dashboard_content %}
+<div class="max-w-4xl mx-auto space-y-6">
+    
+    <!-- Page Header -->
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-serif font-bold text-brand-primary">Créer un nouvel utilisateur</h1>
+            <p class="text-sm text-gray-600 mt-1">Ajoutez un nouveau membre à la plateforme généalogique</p>
+        </div>
+        
+        <a href="{% url 'genealogy:manage_users' %}" 
+           class="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium">
+            <i data-feather="arrow-left" class="w-4 h-4"></i>
+            Retour à la gestion
+        </a>
+    </div>
+
+    <!-- User Creation Form -->
+    <form method="post" class="bg-white rounded-xl border border-brand-border shadow-sm overflow-hidden">
+        {% csrf_token %}
+        
+        <!-- Form Header -->
+        <div class="px-6 py-4 bg-brand-primary/5 border-b border-brand-border">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-brand-primary rounded-lg flex items-center justify-center">
+                    <i data-feather="user-plus" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <h2 class="font-semibold text-gray-900">Informations du nouvel utilisateur</h2>
+                    <p class="text-sm text-gray-600">Remplissez tous les champs requis pour créer le compte</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="p-6 space-y-8">
+            
+            <!-- Informations personnelles -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="user" class="w-5 h-5 text-brand-primary"></i>
+                    Informations personnelles
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Prénom -->
+                    <div>
+                        <label for="{{ form.first_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Prénom *
+                        </label>
+                        {{ form.first_name }}
+                        {% if form.first_name.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.first_name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Nom de famille -->
+                    <div>
+                        <label for="{{ form.last_name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Nom de famille *
+                        </label>
+                        {{ form.last_name }}
+                        {% if form.last_name.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.last_name.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Email -->
+                    <div>
+                        <label for="{{ form.email.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Adresse email *
+                        </label>
+                        {{ form.email }}
+                        {% if form.email.help_text %}
+                            <p class="mt-1 text-xs text-gray-500">{{ form.email.help_text }}</p>
+                        {% endif %}
+                        {% if form.email.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.email.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Téléphone -->
+                    <div>
+                        <label for="{{ form.phone_number.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Numéro de téléphone
+                        </label>
+                        {{ form.phone_number }}
+                        {% if form.phone_number.help_text %}
+                            <p class="mt-1 text-xs text-gray-500">{{ form.phone_number.help_text }}</p>
+                        {% endif %}
+                        {% if form.phone_number.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.phone_number.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Informations de compte -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="key" class="w-5 h-5 text-brand-primary"></i>
+                    Informations de connexion
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Nom d'utilisateur -->
+                    <div class="md:col-span-2">
+                        <label for="{{ form.username.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Nom d'utilisateur *
+                        </label>
+                        {{ form.username }}
+                        {% if form.username.help_text %}
+                            <p class="mt-1 text-xs text-gray-500">{{ form.username.help_text }}</p>
+                        {% endif %}
+                        {% if form.username.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.username.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Mot de passe -->
+                    <div>
+                        <label for="{{ form.password1.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Mot de passe *
+                        </label>
+                        {{ form.password1 }}
+                        {% if form.password1.help_text %}
+                            <p class="mt-1 text-xs text-gray-500">{{ form.password1.help_text }}</p>
+                        {% endif %}
+                        {% if form.password1.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.password1.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Confirmation mot de passe -->
+                    <div>
+                        <label for="{{ form.password2.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Confirmer le mot de passe *
+                        </label>
+                        {{ form.password2 }}
+                        {% if form.password2.help_text %}
+                            <p class="mt-1 text-xs text-gray-500">{{ form.password2.help_text }}</p>
+                        {% endif %}
+                        {% if form.password2.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.password2.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rôle et statut -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="shield" class="w-5 h-5 text-brand-primary"></i>
+                    Rôle et statut
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Rôle -->
+                    <div>
+                        <label for="{{ form.role.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            Rôle dans le système *
+                        </label>
+                        {{ form.role }}
+                        {% if form.role.help_text %}
+                            <p class="mt-1 text-xs text-gray-500">{{ form.role.help_text }}</p>
+                        {% endif %}
+                        {% if form.role.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.role.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                    
+                    <!-- Compte vérifié -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-3">
+                            Statut du compte
+                        </label>
+                        <div class="flex items-center">
+                            {{ form.is_verified }}
+                            <label for="{{ form.is_verified.id_for_label }}" class="ml-2 text-sm text-gray-700">
+                                {{ form.is_verified.label }}
+                            </label>
+                        </div>
+                        {% if form.is_verified.help_text %}
+                            <p class="mt-1 text-xs text-gray-500">{{ form.is_verified.help_text }}</p>
+                        {% endif %}
+                        {% if form.is_verified.errors %}
+                            <p class="mt-1 text-sm text-red-600">{{ form.is_verified.errors.0 }}</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Permissions généalogiques -->
+            <div>
+                <h3 class="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
+                    <i data-feather="settings" class="w-5 h-5 text-brand-primary"></i>
+                    Permissions généalogiques
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- Peut ajouter des enfants -->
+                    <div class="flex items-start">
+                        <div class="flex items-center h-5">
+                            {{ form.can_add_children }}
+                        </div>
+                        <div class="ml-3">
+                            <label for="{{ form.can_add_children.id_for_label }}" class="text-sm font-medium text-gray-700">
+                                {{ form.can_add_children.label }}
+                            </label>
+                            {% if form.can_add_children.help_text %}
+                                <p class="text-xs text-gray-500">{{ form.can_add_children.help_text }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Peut modifier ses infos -->
+                    <div class="flex items-start">
+                        <div class="flex items-center h-5">
+                            {{ form.can_modify_own_info }}
+                        </div>
+                        <div class="ml-3">
+                            <label for="{{ form.can_modify_own_info.id_for_label }}" class="text-sm font-medium text-gray-700">
+                                {{ form.can_modify_own_info.label }}
+                            </label>
+                            {% if form.can_modify_own_info.help_text %}
+                                <p class="text-xs text-gray-500">{{ form.can_modify_own_info.help_text }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Peut voir les infos privées -->
+                    <div class="flex items-start">
+                        <div class="flex items-center h-5">
+                            {{ form.can_view_private_info }}
+                        </div>
+                        <div class="ml-3">
+                            <label for="{{ form.can_view_private_info.id_for_label }}" class="text-sm font-medium text-gray-700">
+                                {{ form.can_view_private_info.label }}
+                            </label>
+                            {% if form.can_view_private_info.help_text %}
+                                <p class="text-xs text-gray-500">{{ form.can_view_private_info.help_text }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <!-- Peut exporter les données -->
+                    <div class="flex items-start">
+                        <div class="flex items-center h-5">
+                            {{ form.can_export_data }}
+                        </div>
+                        <div class="ml-3">
+                            <label for="{{ form.can_export_data.id_for_label }}" class="text-sm font-medium text-gray-700">
+                                {{ form.can_export_data.label }}
+                            </label>
+                            {% if form.can_export_data.help_text %}
+                                <p class="text-xs text-gray-500">{{ form.can_export_data.help_text }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Form Actions -->
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+            <div class="flex items-center gap-2 text-sm text-gray-600">
+                <i data-feather="info" class="w-4 h-4"></i>
+                <span>Les champs marqués d'un * sont obligatoires</span>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <a href="{% url 'genealogy:manage_users' %}" 
+                   class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium">
+                    Annuler
+                </a>
+                <button type="submit" 
+                        class="inline-flex items-center gap-2 px-6 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition font-medium">
+                    <i data-feather="user-plus" class="w-4 h-4"></i>
+                    Créer l'utilisateur
+                </button>
+            </div>
+        </div>
+    </form>
+
+    <!-- Info Card -->
+    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <div class="flex items-start gap-3">
+            <i data-feather="info" class="w-5 h-5 text-blue-600 mt-0.5"></i>
+            <div>
+                <h4 class="font-medium text-blue-900">Information importante</h4>
+                <p class="text-sm text-blue-700 mt-1">
+                    L'utilisateur recevra une notification dans son tableau de bord avec ses informations de connexion. 
+                    Assurez-vous de lui communiquer le nom d'utilisateur et le mot de passe de façon sécurisée.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    // Add form validation feedback
+    const form = document.querySelector('form');
+    const submitBtn = form.querySelector('button[type="submit"]');
+    
+    form.addEventListener('submit', function() {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i data-feather="loader" class="w-4 h-4 animate-spin"></i> Création en cours...';
+    });
+});
+</script>
+{% endblock %}

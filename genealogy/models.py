@@ -513,3 +513,115 @@ class AuditLog(models.Model):
     
     def __str__(self):
         return f"{self.user} {self.action} {self.model_name} at {self.timestamp}"
+
+
+class Notification(models.Model):
+    """Model for in-app notifications to replace email notifications"""
+    
+    NOTIFICATION_TYPES = [
+        ('person_created', 'Nouvelle personne ajoutée'),
+        ('person_edited', 'Personne modifiée'),
+        ('person_deleted', 'Personne supprimée'),
+        ('child_added', 'Relation parent-enfant ajoutée'),
+        ('modification_proposed', 'Proposition de modification'),
+        ('proposal_approved', 'Proposition approuvée'),
+        ('proposal_rejected', 'Proposition rejetée'),
+        ('user_created', 'Nouvel utilisateur créé'),
+        ('user_deleted', 'Utilisateur supprimé'),
+        ('user_deactivated', 'Utilisateur désactivé'),
+        ('partnership_created', 'Nouveau partenariat'),
+        ('system_alert', 'Alerte système'),
+    ]
+    
+    PRIORITY_LEVELS = [
+        ('low', 'Faible'),
+        ('normal', 'Normal'),
+        ('high', 'Élevé'),
+        ('urgent', 'Urgent'),
+    ]
+    
+    recipient = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
+    notification_type = models.CharField(max_length=30, choices=NOTIFICATION_TYPES)
+    title = models.CharField(max_length=200)
+    message = models.TextField()
+    
+    # Optional related objects
+    related_person = models.ForeignKey(Person, on_delete=models.SET_NULL, null=True, blank=True)
+    related_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='related_notifications')
+    related_proposal = models.ForeignKey('ModificationProposal', on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Metadata
+    priority = models.CharField(max_length=10, choices=PRIORITY_LEVELS, default='normal')
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    
+    # URLs for navigation
+    action_url = models.URLField(max_length=500, blank=True, null=True, help_text="URL to navigate when notification is clicked")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField(null=True, blank=True, help_text="When notification should be automatically deleted")
+    
+    # Creator information
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_notifications')
+    
+    class Meta:
+        db_table = 'genealogy_notification'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['recipient', 'is_read']),
+            models.Index(fields=['notification_type']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} - {self.recipient.get_full_name()}"
+    
+    def mark_as_read(self):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=['is_read', 'read_at'])
+    
+    def get_icon(self):
+        """Get appropriate icon for notification type"""
+        icon_map = {
+            'person_created': 'user-plus',
+            'person_edited': 'edit-3',
+            'person_deleted': 'user-minus',
+            'child_added': 'users',
+            'modification_proposed': 'edit-2',
+            'proposal_approved': 'check-circle',
+            'proposal_rejected': 'x-circle',
+            'user_created': 'user-plus',
+            'user_deleted': 'user-minus',
+            'user_deactivated': 'user-x',
+            'partnership_created': 'heart',
+            'system_alert': 'alert-triangle',
+        }
+        return icon_map.get(self.notification_type, 'bell')
+    
+    def get_color_class(self):
+        """Get appropriate color class for notification type"""
+        color_map = {
+            'person_created': 'bg-green-100 text-green-600',
+            'person_edited': 'bg-blue-100 text-blue-600',
+            'person_deleted': 'bg-red-100 text-red-600',
+            'child_added': 'bg-purple-100 text-purple-600',
+            'modification_proposed': 'bg-yellow-100 text-yellow-600',
+            'proposal_approved': 'bg-green-100 text-green-600',
+            'proposal_rejected': 'bg-red-100 text-red-600',
+            'user_created': 'bg-blue-100 text-blue-600',
+            'user_deleted': 'bg-red-100 text-red-600',
+            'user_deactivated': 'bg-orange-100 text-orange-600',
+            'partnership_created': 'bg-pink-100 text-pink-600',
+            'system_alert': 'bg-yellow-100 text-yellow-600',
+        }
+        return color_map.get(self.notification_type, 'bg-gray-100 text-gray-600')
+    
+    def is_expired(self):
+        """Check if notification has expired"""
+        if self.expires_at:
+            return timezone.now() > self.expires_at
+        return False
