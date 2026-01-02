@@ -217,13 +217,21 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # ==============================================================================
-# EMAIL CONFIGURATION - Enhanced with better error handling and alternatives
+# EMAIL CONFIGURATION - Mailjet API Integration
 # ==============================================================================
 
-# Choose email backend based on configuration
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+# Mailjet API Configuration
+MAILJET_API_KEY = config('MAILJET_API_KEY', default=None)
+MAILJET_SECRET_KEY = config('MAILJET_SECRET_KEY', default=None)
 
-# Primary Gmail SMTP Configuration
+# Email backend selection - Use Mailjet if configured, fallback to SMTP
+if MAILJET_API_KEY and MAILJET_SECRET_KEY:
+    EMAIL_BACKEND = 'accounts.mailjet_backend.MailjetEmailBackend'
+else:
+    # Fallback to SMTP for local development
+    EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+
+# SMTP Configuration (fallback for local development)
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
@@ -238,9 +246,9 @@ SITE_NAME = 'KANYAMUKENGE'
 # Email timeout settings (important for production)
 EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)  # 30 seconds timeout
 
-# Alternative email backends for development/testing
+# Development email backend override
 if DEBUG:
-    # For development, you can also use console backend to see emails in terminal
+    # For development testing, you can uncomment this to see emails in console
     # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
     pass
 
@@ -338,6 +346,11 @@ LOGGING = {
             'level': 'DEBUG' if DEBUG else 'INFO',
             'propagate': False,
         },
+        'mailjet': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
     },
     'root': {
         'handlers': ['console'],
@@ -355,7 +368,7 @@ if not DEBUG and os.access(LOGS_DIR, os.W_OK):
     }
     
     # Add file handler to loggers
-    for logger in ['accounts', 'genealogy', 'session', 'django.security', 'django.core.mail']:
+    for logger in ['accounts', 'genealogy', 'session', 'django.security', 'django.core.mail', 'mailjet']:
         LOGGING['loggers'][logger]['handlers'].append('file')
     
 # ==============================================================================
