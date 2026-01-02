@@ -15,23 +15,38 @@ from django.core.exceptions import ValidationError
 from datetime import datetime 
 from django.db import transaction
 
+from accounts.forms import DirectUserCreationForm
+from genealogy.notification_utils import notify_user_created
+
+
 import logging
 from django.core.mail import send_mail
 from django.conf import settings
 
-from .email_utils import (
+# from .email_utils import (
+#     notify_person_created,
+#     notify_person_edited, 
+#     notify_person_deleted,
+#     notify_child_added,
+#     notify_modification_proposed,
+#     notify_user_created,
+#     notify_user_deleted,
+#     notify_user_deactivated
+# )
+
+from .notification_utils import (
     notify_person_created,
     notify_person_edited, 
     notify_person_deleted,
     notify_child_added,
     notify_modification_proposed,
-    notify_user_created,
+    notify_proposal_reviewed,
+    notify_user_deactivated,
     notify_user_deleted,
-    notify_user_deactivated
 )
 
 from .models import (
-    Person, Partnership, ParentChild, ModificationProposal,
+    Notification, Person, Partnership, ParentChild, ModificationProposal,
     FamilyEvent, Document, AuditLog
 )
 from .forms import (
@@ -297,7 +312,7 @@ def person_detail(request, person_id):
 
 @login_required
 def person_create(request):
-    """Create a new person - WITH EMAIL NOTIFICATION"""
+    """Create a new person - WITH NOTIFICATION"""
     if request.method == 'POST':
         form = PersonForm(request.POST, request.FILES)
         if form.is_valid():
@@ -315,12 +330,12 @@ def person_create(request):
                 request=request
             )
             
-            # Send email notification to admins
+            # Send notification instead of email
             try:
                 notify_person_created(person, request.user)
-                logger.info(f"Email notification sent for person creation: {person.get_full_name()}")
+                logger.info(f"Notification sent for person creation: {person.get_full_name()}")
             except Exception as e:
-                logger.error(f"Failed to send email notification for person creation: {str(e)}")
+                logger.error(f"Failed to send notification for person creation: {str(e)}")
             
             messages.success(request, f'{person.get_full_name()} ajouté(e) avec succès.')
             return redirect('genealogy:person_detail', person_id=person.id)
@@ -335,7 +350,7 @@ def person_create(request):
 
 @login_required
 def person_edit(request, person_id):
-    """Edit a person's information - WITH EMAIL NOTIFICATION"""
+    """Edit a person's information - WITH NOTIFICATION"""
     person = get_object_or_404(Person, id=person_id)
     
     if not person.can_be_modified_by(request.user):
@@ -363,13 +378,13 @@ def person_edit(request, person_id):
                 request=request
             )
             
-            # Send email notification to admins if there were changes
+            # Send notification instead of email if there were changes
             if changed_fields:
                 try:
                     notify_person_edited(person, request.user, changed_fields)
-                    logger.info(f"Email notification sent for person edit: {person.get_full_name()}")
+                    logger.info(f"Notification sent for person edit: {person.get_full_name()}")
                 except Exception as e:
-                    logger.error(f"Failed to send email notification for person edit: {str(e)}")
+                    logger.error(f"Failed to send notification for person edit: {str(e)}")
             
             messages.success(request, f'Informations de {person.get_full_name()} mises à jour.')
             return redirect('genealogy:person_detail', person_id=person.id)
@@ -456,60 +471,37 @@ def add_partnership(request, person_id):
 
 @login_required
 def add_child(request, person_id):
-    """Add a child for a person - WITH EMAIL NOTIFICATION"""
+    """Add child relationship - WITH NOTIFICATION"""
     parent = get_object_or_404(Person, id=person_id)
-
-    if not parent.can_be_modified_by(request.user):
-        messages.error(request, "Vous n'avez pas l'autorisation d'ajouter des enfants pour cette personne.")
-        return redirect('genealogy:person_detail', person_id=parent.id)
-
+    
     if request.method == 'POST':
         form = ParentChildForm(request.POST, parent=parent)
         if form.is_valid():
             try:
-                # Get the selected child from the form
-                child = form.cleaned_data['child']
-                relationship_type = form.cleaned_data['relationship_type']
-                notes = form.cleaned_data.get('notes', '')
-                
-                # Check if relationship already exists
-                existing_relationship = ParentChild.objects.filter(
-                    parent=parent,
-                    child=child
-                ).first()
-                
-                if existing_relationship:
-                    messages.error(request, f'{child.get_full_name()} est déjà enregistré(e) comme enfant de {parent.get_full_name()}.')
-                    return redirect('genealogy:person_detail', person_id=parent.id)
-                
-                # Create the parent-child relationship
                 with transaction.atomic():
-                    relationship = ParentChild.objects.create(
-                        parent=parent,
-                        child=child,
-                        relationship_type=relationship_type,
-                        notes=notes,
-                        created_by=request.user
-                    )
-                
+                    parent_child = form.save(commit=False)
+                    parent_child.parent = parent
+                    parent_child.created_by = request.user
+                    parent_child.save()
+                    
                     create_audit_log(
                         user=request.user,
                         action='create',
                         model_name='ParentChild',
-                        object_id=relationship.id,
+                        object_id=parent_child.id,
                         changes=form.cleaned_data,
                         request=request
                     )
-                
-                # Send email notification to admins
-                try:
-                    notify_child_added(parent, child, request.user)
-                    logger.info(f"Email notification sent for child addition: {parent.get_full_name()} -> {child.get_full_name()}")
-                except Exception as e:
-                    logger.error(f"Failed to send email notification for child addition: {str(e)}")
-                
-                messages.success(request, f'{child.get_full_name()} ajouté(e) comme enfant de {parent.get_full_name()}.')
-                return redirect('genealogy:person_detail', person_id=parent.id)
+                    
+                    # Send notification instead of email
+                    try:
+                        notify_child_added(parent, parent_child.child, request.user)
+                        logger.info(f"Notification sent for child added: {parent.get_full_name()} -> {parent_child.child.get_full_name()}")
+                    except Exception as e:
+                        logger.error(f"Failed to send notification for child added: {str(e)}")
+                    
+                    messages.success(request, f'Relation parent-enfant ajoutée: {parent.get_full_name()} → {parent_child.child.get_full_name()}')
+                    return redirect('genealogy:person_detail', person_id=parent.id)
 
             except ValidationError as e:
                 if hasattr(e, 'message_dict'):
@@ -534,7 +526,7 @@ def add_child(request, person_id):
 
 @login_required
 def propose_modification(request, person_id):
-    """Propose a modification for a person's data - WITH EMAIL NOTIFICATION"""
+    """Propose a modification for a person's data - WITH NOTIFICATION"""
     person = get_object_or_404(Person, id=person_id)
     
     if request.method == 'POST':
@@ -559,7 +551,7 @@ def propose_modification(request, person_id):
                 request=request
             )
             
-            # Send email notification to admins
+            # Send notification instead of email to admins
             try:
                 notify_modification_proposed(
                     person, 
@@ -568,9 +560,9 @@ def propose_modification(request, person_id):
                     proposal.old_value, 
                     proposal.new_value
                 )
-                logger.info(f"Email notification sent for modification proposal: {person.get_full_name()}")
+                logger.info(f"Notification sent for modification proposal: {person.get_full_name()}")
             except Exception as e:
-                logger.error(f"Failed to send email notification for modification proposal: {str(e)}")
+                logger.error(f"Failed to send notification for modification proposal: {str(e)}")
             
             messages.success(request, 'Proposition de modification envoyée.')
             return redirect('genealogy:person_detail', person_id=person.id)
@@ -586,7 +578,7 @@ def propose_modification(request, person_id):
 
 @login_required
 def review_proposal(request, proposal_id):
-    """Review a modification proposal (admin only)"""
+    """Review a modification proposal (admin only) - WITH NOTIFICATION"""
     if request.user.role != 'admin':
         messages.error(request, "Seuls les administrateurs peuvent examiner les propositions.")
         return redirect('genealogy:dashboard')
@@ -617,6 +609,13 @@ def review_proposal(request, proposal_id):
                 request=request
             )
             
+            # Send notification to proposer
+            try:
+                notify_proposal_reviewed(proposal, request.user, approved=True)
+                logger.info(f"Notification sent for approved proposal: {proposal.id}")
+            except Exception as e:
+                logger.error(f"Failed to send notification for approved proposal: {str(e)}")
+            
             messages.success(request, 'Proposition approuvée et appliquée.')
         
         elif action == 'reject':
@@ -635,12 +634,20 @@ def review_proposal(request, proposal_id):
                 request=request
             )
             
+            # Send notification to proposer
+            try:
+                notify_proposal_reviewed(proposal, request.user, approved=False)
+                logger.info(f"Notification sent for rejected proposal: {proposal.id}")
+            except Exception as e:
+                logger.error(f"Failed to send notification for rejected proposal: {str(e)}")
+            
             messages.success(request, 'Proposition rejetée.')
         
-        return redirect('genealogy:dashboard')
+        return redirect('genealogy:manage_users')  # or wherever you want to redirect
     
     return render(request, 'genealogy/review_proposal.html', {
-        'proposal': proposal
+        'proposal': proposal,
+        'title': f'Examiner proposition pour {proposal.person.get_full_name()}'
     })
 
 
@@ -1391,3 +1398,225 @@ def home(request):
     }
 
     return render(request, 'genealogy/home.html', context)
+
+
+@login_required
+def notifications_view(request):
+    """Display notifications page with filtering and pagination"""
+    # Get filter parameters
+    status_filter = request.GET.get('status', 'all')
+    type_filter = request.GET.get('type', 'all')
+    
+    # Base queryset
+    notifications = Notification.objects.filter(recipient=request.user)
+    
+    # Apply filters
+    if status_filter == 'unread':
+        notifications = notifications.filter(is_read=False)
+    elif status_filter == 'read':
+        notifications = notifications.filter(is_read=True)
+    
+    if type_filter != 'all':
+        notifications = notifications.filter(notification_type=type_filter)
+    
+    # Order by creation date
+    notifications = notifications.order_by('-created_at')
+    
+    # Pagination
+    paginator = Paginator(notifications, 20)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # Get notification type choices for filter dropdown
+    type_choices = Notification.NOTIFICATION_TYPES
+    
+    # Statistics
+    stats = {
+        'total': Notification.objects.filter(recipient=request.user).count(),
+        'unread': Notification.objects.filter(recipient=request.user, is_read=False).count(),
+        'read': Notification.objects.filter(recipient=request.user, is_read=True).count(),
+    }
+    
+    context = {
+        'notifications': page_obj,
+        'status_filter': status_filter,
+        'type_filter': type_filter,
+        'type_choices': type_choices,
+        'stats': stats,
+        'paginator': paginator,
+    }
+    
+    return render(request, 'genealogy/notifications.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def mark_notification_read(request, notification_id):
+    """Mark a specific notification as read"""
+    try:
+        notification = get_object_or_404(Notification, id=notification_id, recipient=request.user)
+        notification.mark_as_read()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Notification marquée comme lue'
+        })
+    except Exception as e:
+        logger.error(f"Error marking notification as read: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erreur lors de la mise à jour'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def mark_all_notifications_read(request):
+    """Mark all notifications as read for current user"""
+    try:
+        updated_count = Notification.objects.filter(
+            recipient=request.user, 
+            is_read=False
+        ).update(
+            is_read=True,
+            read_at=timezone.now()
+        )
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{updated_count} notifications marquées comme lues',
+            'updated_count': updated_count
+        })
+    except Exception as e:
+        logger.error(f"Error marking all notifications as read: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erreur lors de la mise à jour'
+        }, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def delete_notification(request, notification_id):
+    """Delete a specific notification"""
+    try:
+        notification = get_object_or_404(Notification, id=notification_id, recipient=request.user)
+        notification.delete()
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Notification supprimée'
+        })
+    except Exception as e:
+        logger.error(f"Error deleting notification: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erreur lors de la suppression'
+        }, status=500)
+
+
+@login_required
+def get_notifications_api(request):
+    """API endpoint for getting notifications (for AJAX updates)"""
+    try:
+        limit = int(request.GET.get('limit', 10))
+        offset = int(request.GET.get('offset', 0))
+        
+        notifications = Notification.objects.filter(
+            recipient=request.user
+        ).order_by('-created_at')[offset:offset + limit]
+        
+        notifications_data = []
+        for notification in notifications:
+            notifications_data.append({
+                'id': notification.id,
+                'title': notification.title,
+                'message': notification.message,
+                'notification_type': notification.notification_type,
+                'is_read': notification.is_read,
+                'created_at': notification.created_at.isoformat(),
+                'icon': notification.get_icon(),
+                'color_class': notification.get_color_class(),
+                'action_url': notification.action_url,
+                'priority': notification.priority,
+            })
+        
+        unread_count = Notification.objects.filter(
+            recipient=request.user, 
+            is_read=False
+        ).count()
+        
+        return JsonResponse({
+            'success': True,
+            'notifications': notifications_data,
+            'unread_count': unread_count,
+            'has_more': len(notifications) == limit
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching notifications: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Erreur lors du chargement des notifications'
+        }, status=500)
+    
+@login_required
+def create_user_direct(request):
+    """Create user directly without email invitation (admin only)"""
+    if request.user.role != 'admin':
+        messages.error(request, "Seuls les administrateurs peuvent créer des utilisateurs.")
+        return redirect('genealogy:manage_users')
+    
+    if request.method == 'POST':
+        form = DirectUserCreationForm(request.POST)
+        if form.is_valid():
+            try:
+                with transaction.atomic():
+                    # Create the user
+                    user = form.save()
+                    
+                    # Create audit log
+                    create_audit_log(
+                        user=request.user,
+                        action='create',
+                        model_name='User',
+                        object_id=user.id,
+                        changes={
+                            'username': user.username,
+                            'email': user.email,
+                            'first_name': user.first_name,
+                            'last_name': user.last_name,
+                            'role': user.role,
+                            'created_by': request.user.get_full_name()
+                        },
+                        request=request
+                    )
+                    
+                    # Send notification instead of email
+                    try:
+                        notify_user_created(user, request.user)
+                        logger.info(f"Notification sent for user creation: {user.get_full_name()}")
+                    except Exception as e:
+                        logger.error(f"Failed to send notification for user creation: {str(e)}")
+                    
+                    messages.success(
+                        request, 
+                        f'Utilisateur {user.get_full_name()} créé avec succès. '
+                        f'Nom d\'utilisateur: {user.username}'
+                    )
+                    return redirect('genealogy:manage_users')
+                    
+            except Exception as e:
+                logger.error(f"Error creating user: {str(e)}")
+                messages.error(request, f'Erreur lors de la création de l\'utilisateur: {str(e)}')
+    else:
+        form = DirectUserCreationForm()
+    
+    return render(request, 'genealogy/create_user_direct.html', {
+        'form': form,
+        'title': 'Créer un nouvel utilisateur'
+    })
+
+
+
+

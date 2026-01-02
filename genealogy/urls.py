@@ -40,4 +40,14 @@ urlpatterns = [
     # API endpoints
     path('api/person-search/', views.api_person_search, name='api_person_search'),
     path('api/tree-data/<int:person_id>/', views.api_family_tree_data, name='api_family_tree_data'),
+
+    # Notifications
+    path('notifications/', views.notifications_view, name='notifications'),
+    path('notifications/<int:notification_id>/mark-read/', views.mark_notification_read, name='mark_notification_read'),
+    path('notifications/mark-all-read/', views.mark_all_notifications_read, name='mark_all_notifications_read'),
+    path('notifications/<int:notification_id>/delete/', views.delete_notification, name='delete_notification'),
+    path('api/notifications/', views.get_notifications_api, name='get_notifications_api'),
+
+    #User creation direct
+    path('create-user/', views.create_user_direct, name='create_user_direct'),
 ]

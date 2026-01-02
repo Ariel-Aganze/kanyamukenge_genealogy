@@ -13,11 +13,32 @@
                 <h1 class="font-serif text-2xl font-bold text-brand-primary">Gestion des utilisateurs</h1>
                 <p class="text-gray-600">Administrez les comptes et permissions de la famille</p>
             </div>
-            <a href="{% url 'accounts:send_invitation' %}" 
-               class="bg-brand-primary text-white px-6 py-3 rounded-lg font-medium hover:bg-green-800 transition flex items-center gap-2">
-                <i data-feather="user-plus" class="w-4 h-4"></i>
-                Inviter un membre
-            </a>
+            
+            <!-- Updated Action Buttons -->
+            <div class="flex items-center gap-3">
+                <!-- Create User Button (Primary) -->
+                <a href="{% url 'genealogy:create_user_direct' %}" 
+                   class="inline-flex items-center gap-2 px-6 py-3 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition font-medium shadow-sm">
+                    <i data-feather="user-plus" class="w-4 h-4"></i>
+                    Créer un utilisateur
+                </a>
+                
+                <!-- Refresh Button -->
+                <button onclick="window.location.reload()" 
+                        class="inline-flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium">
+                    <i data-feather="refresh-cw" class="w-4 h-4"></i>
+                    Actualiser
+                </button>
+                
+                <!-- Legacy Invitation Button (Secondary) -->
+                {% comment %}
+                <a href="{% url 'accounts:send_invitation' %}" 
+                   class="inline-flex items-center gap-2 px-4 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition font-medium">
+                    <i data-feather="mail" class="w-4 h-4"></i>
+                    Inviter par email
+                </a>
+                {% endcomment %}
+            </div>
         </div>
         
         <!-- Statistiques rapides avec vraies données -->
@@ -61,11 +82,11 @@
             <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
                 <div class="flex items-center gap-3">
                     <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <i data-feather="mail" class="w-5 h-5 text-purple-600"></i>
+                        <i data-feather="bell" class="w-5 h-5 text-purple-600"></i>
                     </div>
                     <div>
-                        <div class="text-2xl font-serif font-bold text-purple-800">{{ invitation_stats.pending|default:0 }}</div>
-                        <div class="text-xs text-purple-600">Invitations</div>
+                        <div class="text-2xl font-serif font-bold text-purple-800">{{ notification_stats.unread|default:0 }}</div>
+                        <div class="text-xs text-purple-600">Notifications</div>
                     </div>
                 </div>
             </div>
@@ -86,10 +107,10 @@
                     <i data-feather="git-pull-request" class="w-4 h-4 inline mr-2"></i>
                     Propositions ({{ proposal_stats.pending|default:0 }})
                 </button>
-                <button onclick="showTab('invitations')" id="tab-invitations" 
-                        class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 {% if active_tab == 'invitations' %}border-brand-primary text-brand-primary bg-brand-primary/5{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
-                    <i data-feather="mail" class="w-4 h-4 inline mr-2"></i>
-                    Invitations ({{ invitation_stats.pending|default:0 }})
+                <button onclick="showTab('notifications')" id="tab-notifications" 
+                        class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 {% if active_tab == 'notifications' %}border-brand-primary text-brand-primary bg-brand-primary/5{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
+                    <i data-feather="bell" class="w-4 h-4 inline mr-2"></i>
+                    Notifications ({{ notification_stats.unread|default:0 }})
                 </button>
                 <button onclick="showTab('audit')" id="tab-audit" 
                         class="tab-button flex-1 py-4 px-6 text-sm font-medium border-b-2 {% if active_tab == 'audit' %}border-brand-primary text-brand-primary bg-brand-primary/5{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
@@ -123,6 +144,28 @@
                     <input type="text" id="userSearch" placeholder="Rechercher un utilisateur..." 
                            class="pl-10 pr-4 py-2 border border-brand-border rounded-lg text-sm focus:ring-2 focus:ring-brand-primary w-64">
                     <i data-feather="search" class="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                </div>
+            </div>
+
+            <!-- Quick Actions Bar -->
+            <div class="bg-brand-primary/5 border border-brand-primary/20 rounded-lg p-4 mb-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <i data-feather="zap" class="w-5 h-5 text-brand-primary"></i>
+                        <span class="text-sm font-medium text-brand-primary">Actions rapides</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <a href="{% url 'genealogy:create_user_direct' %}" 
+                           class="inline-flex items-center gap-2 px-3 py-2 bg-brand-primary text-white rounded-md hover:bg-green-800 transition text-sm font-medium">
+                            <i data-feather="user-plus" class="w-4 h-4"></i>
+                            Nouveau utilisateur
+                        </a>
+                        <a href="{% url 'genealogy:audit_log' %}" 
+                           class="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 transition text-sm font-medium">
+                            <i data-feather="file-text" class="w-4 h-4"></i>
+                            Journal d'audit
+                        </a>
+                    </div>
                 </div>
             </div>
 
@@ -237,7 +280,13 @@
                 {% empty %}
                 <div class="text-center py-12">
                     <i data-feather="users" class="w-16 h-16 mx-auto text-gray-200 mb-4"></i>
-                    <p class="text-gray-500">Aucun utilisateur trouvé</p>
+                    <h3 class="text-lg font-medium text-gray-900 mb-2">Aucun utilisateur trouvé</h3>
+                    <p class="text-gray-500 mb-4">Commencez par créer votre premier utilisateur</p>
+                    <a href="{% url 'genealogy:create_user_direct' %}" 
+                       class="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition font-medium">
+                        <i data-feather="user-plus" class="w-4 h-4"></i>
+                        Créer un utilisateur
+                    </a>
                 </div>
                 {% endfor %}
             </div>
@@ -315,59 +364,30 @@
             {% endif %}
         </div>
 
-        <!-- Contenu Invitations avec vraies données -->
-        <div id="content-invitations" class="tab-content {% if active_tab != 'invitations' %}hidden{% endif %} p-6">
-            {% if invitations %}
-                <div class="space-y-4">
-                    {% for invitation in invitations %}
-                    <div class="border border-gray-200 rounded-lg p-4 hover:border-brand-primary transition">
-                        <div class="flex items-center justify-between">
-                            <div class="flex items-center gap-3">
-                                <div class="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
-                                    <i data-feather="mail" class="w-5 h-5 text-purple-600"></i>
-                                </div>
-                                <div>
-                                    <h3 class="font-medium text-gray-900">{{ invitation.email }}</h3>
-                                    <p class="text-sm text-gray-500">
-                                        Rôle: {{ invitation.get_role_display }} • 
-                                        Envoyée {{ invitation.created_at|timesince }}
-                                        {% if invitation.expires_at %} • Expire le {{ invitation.expires_at|date:"d/m/Y" }}{% endif %}
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            <div class="flex items-center gap-2">
-                                <span class="px-2 py-1 rounded-full text-xs font-medium
-                                    {% if invitation.is_expired %}bg-red-100 text-red-800
-                                    {% elif invitation.accepted_at %}bg-green-100 text-green-800
-                                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                                    {% if invitation.is_expired %}Expirée
-                                    {% elif invitation.accepted_at %}Acceptée
-                                    {% else %}En attente{% endif %}
-                                </span>
-                                
-                                {% if invitation.is_expired %}
-                                <button onclick="resendInvitation('{{ invitation.id }}')" 
-                                        class="text-sm text-brand-primary hover:text-brand-accent transition">
-                                    Renvoyer
-                                </button>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
+        <!-- Contenu Notifications (new tab) -->
+        <div id="content-notifications" class="tab-content {% if active_tab != 'notifications' %}hidden{% endif %} p-6">
+            <div class="text-center py-8">
+                <div class="flex items-center justify-center gap-3 mb-4">
+                    <i data-feather="bell" class="w-8 h-8 text-brand-primary"></i>
+                    <h3 class="text-lg font-medium text-gray-900">Gestion des notifications</h3>
                 </div>
-            {% else %}
-                <div class="text-center py-12">
-                    <i data-feather="mail" class="w-16 h-16 mx-auto text-gray-200 mb-4"></i>
-                    <p class="text-gray-500">Aucune invitation en cours</p>
-                </div>
-            {% endif %}
+                <p class="text-gray-600 mb-6">Consultez et gérez toutes les notifications système</p>
+                <a href="{% url 'genealogy:notifications' %}" 
+                   class="inline-flex items-center gap-2 bg-brand-primary text-white px-6 py-3 rounded-lg hover:bg-green-800 transition">
+                    <i data-feather="external-link" class="w-4 h-4"></i>
+                    Voir toutes les notifications
+                </a>
+            </div>
         </div>
 
         <!-- Contenu Audit -->
         <div id="content-audit" class="tab-content {% if active_tab != 'audit' %}hidden{% endif %} p-6">
-            <div class="text-center">
+            <div class="text-center py-8">
+                <div class="flex items-center justify-center gap-3 mb-4">
+                    <i data-feather="shield" class="w-8 h-8 text-brand-primary"></i>
+                    <h3 class="text-lg font-medium text-gray-900">Journal d'audit complet</h3>
+                </div>
+                <p class="text-gray-600 mb-6">Consultez l'historique détaillé de toutes les actions</p>
                 <a href="{% url 'genealogy:audit_log' %}" 
                    class="inline-flex items-center gap-2 bg-brand-primary text-white px-6 py-3 rounded-lg hover:bg-green-800 transition">
                     <i data-feather="external-link" class="w-4 h-4"></i>
@@ -476,7 +496,7 @@ function showTab(tabName) {
 document.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const activeTab = urlParams.get('tab');
-    if (activeTab && ['users', 'proposals', 'invitations', 'audit'].includes(activeTab)) {
+    if (activeTab && ['users', 'proposals', 'notifications', 'audit'].includes(activeTab)) {
         showTab(activeTab);
     }
     feather.replace();
@@ -585,8 +605,6 @@ function deleteUser(userId) {
         });
     }
 }
-
-
 
 // Fermer les modals en cliquant à l'extérieur
 document.getElementById('editUserModal').addEventListener('click', function(e) {

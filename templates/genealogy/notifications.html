@@ -1,0 +1,448 @@
+{% extends 'base/dashboard.html' %}
+{% load static %}
+{% load notifications_tags %}
+
+{% block title %}Notifications - Famille KANYAMUKENGE{% endblock %}
+
+{% block dashboard_content %}
+<div class="space-y-6">
+    
+    <!-- Page Header -->
+    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+            <h1 class="text-2xl font-serif font-bold text-brand-primary">Notifications</h1>
+            <p class="text-sm text-gray-600 mt-1">Gérez vos notifications et alertes du système</p>
+        </div>
+        
+        {% if stats.unread > 0 %}
+        <button 
+            onclick="markAllAsRead()" 
+            class="inline-flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition font-medium"
+        >
+            <i data-feather="check-circle" class="w-4 h-4"></i>
+            Tout marquer comme lu
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-white border border-brand-border rounded-xl p-4">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <i data-feather="bell" class="w-6 h-6 text-blue-600"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-serif font-bold text-gray-900">{{ stats.total }}</div>
+                    <div class="text-sm text-gray-500">Total</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white border border-brand-border rounded-xl p-4">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                    <i data-feather="alert-circle" class="w-6 h-6 text-red-600"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-serif font-bold text-gray-900">{{ stats.unread }}</div>
+                    <div class="text-sm text-gray-500">Non lues</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="bg-white border border-brand-border rounded-xl p-4">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                    <i data-feather="check" class="w-6 h-6 text-green-600"></i>
+                </div>
+                <div>
+                    <div class="text-2xl font-serif font-bold text-gray-900">{{ stats.read }}</div>
+                    <div class="text-sm text-gray-500">Lues</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="bg-white rounded-xl border border-brand-border p-6">
+        <form method="GET" class="flex flex-col md:flex-row gap-4">
+            <div class="flex-1">
+                <label for="status" class="block text-sm font-medium text-gray-700 mb-1">Statut</label>
+                <select name="status" id="status" class="w-full rounded-lg border-gray-300 focus:border-brand-primary focus:ring-brand-primary">
+                    <option value="all" {% if status_filter == 'all' %}selected{% endif %}>Toutes les notifications</option>
+                    <option value="unread" {% if status_filter == 'unread' %}selected{% endif %}>Non lues</option>
+                    <option value="read" {% if status_filter == 'read' %}selected{% endif %}>Lues</option>
+                </select>
+            </div>
+            
+            <div class="flex-1">
+                <label for="type" class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select name="type" id="type" class="w-full rounded-lg border-gray-300 focus:border-brand-primary focus:ring-brand-primary">
+                    <option value="all" {% if type_filter == 'all' %}selected{% endif %}>Tous les types</option>
+                    {% for value, display in type_choices %}
+                    <option value="{{ value }}" {% if type_filter == value %}selected{% endif %}>{{ display }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="flex items-end">
+                <button type="submit" class="w-full md:w-auto px-6 py-2 bg-brand-primary text-white rounded-lg hover:bg-green-800 transition">
+                    Filtrer
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Notifications List -->
+    <div class="bg-white rounded-xl border border-brand-border overflow-hidden">
+        {% if notifications %}
+            <div class="divide-y divide-gray-200">
+                {% for notification in notifications %}
+                <div class="notification-item p-6 hover:bg-gray-50 transition cursor-pointer {% if not notification.is_read %}bg-blue-50/30 border-l-4 border-l-blue-500{% endif %}" 
+                     data-notification-id="{{ notification.id }}" 
+                     data-action-url="{{ notification.action_url }}"
+                     onclick="handleNotificationClick({{ notification.id }}, '{{ notification.action_url|default:'' }}')">
+                    
+                    <div class="flex items-start gap-4">
+                        <!-- Icon -->
+                        <div class="flex-shrink-0 w-12 h-12 {{ notification.get_color_class }} rounded-lg flex items-center justify-center">
+                            <i data-feather="{{ notification.get_icon }}" class="w-6 h-6"></i>
+                        </div>
+                        
+                        <!-- Content -->
+                        <div class="flex-1 min-w-0">
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <h3 class="font-semibold text-gray-900 text-sm">{{ notification.title }}</h3>
+                                        
+                                        <!-- Priority Badge -->
+                                        {% if notification.priority == 'high' or notification.priority == 'urgent' %}
+                                        <span class="px-2 py-0.5 rounded-full text-xs font-medium 
+                                            {% if notification.priority == 'urgent' %}bg-red-100 text-red-800
+                                            {% else %}bg-orange-100 text-orange-800{% endif %}">
+                                            {% if notification.priority == 'urgent' %}Urgent{% else %}Important{% endif %}
+                                        </span>
+                                        {% endif %}
+                                        
+                                        <!-- Unread Indicator -->
+                                        {% if not notification.is_read %}
+                                        <div class="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                        {% endif %}
+                                    </div>
+                                    
+                                    <div class="notification-message text-sm text-gray-600 mb-2">
+                                        {{ notification.message|linebreaks|truncatewords:20 }}
+                                    </div>
+                                    
+                                    <div class="flex items-center gap-4 text-xs text-gray-500">
+                                        <span>{{ notification.created_at|timesince }}</span>
+                                        {% if notification.related_person %}
+                                        <span>• {{ notification.related_person.get_full_name }}</span>
+                                        {% endif %}
+                                        {% if notification.created_by %}
+                                        <span>• Par {{ notification.created_by.get_full_name }}</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                
+                                <!-- Actions -->
+                                <div class="flex items-center gap-2">
+                                    {% if not notification.is_read %}
+                                    <button 
+                                        onclick="event.stopPropagation(); markAsRead({{ notification.id }})" 
+                                        class="p-1 text-gray-400 hover:text-blue-600 transition"
+                                        title="Marquer comme lu"
+                                    >
+                                        <i data-feather="check" class="w-4 h-4"></i>
+                                    </button>
+                                    {% endif %}
+                                    
+                                    <button 
+                                        onclick="event.stopPropagation(); showDeleteConfirm({{ notification.id }})" 
+                                        class="p-1 text-gray-400 hover:text-red-600 transition"
+                                        title="Supprimer"
+                                    >
+                                        <i data-feather="trash-2" class="w-4 h-4"></i>
+                                    </button>
+                                    
+                                    <button 
+                                        onclick="event.stopPropagation(); toggleExpanded(this)" 
+                                        class="p-1 text-gray-400 hover:text-gray-600 transition expand-btn"
+                                        title="Voir plus"
+                                    >
+                                        <i data-feather="chevron-down" class="w-4 h-4"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Expanded Content -->
+                            <div class="expanded-content hidden mt-4 pt-4 border-t border-gray-200">
+                                <div class="text-sm text-gray-700 whitespace-pre-line">{{ notification.message }}</div>
+                                
+                                {% if notification.action_url %}
+                                <div class="mt-3">
+                                    <a href="{{ notification.action_url }}" 
+                                       class="inline-flex items-center gap-2 text-sm text-brand-primary hover:text-brand-accent transition font-medium">
+                                        <i data-feather="arrow-right" class="w-4 h-4"></i>
+                                        Voir les détails
+                                    </a>
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <!-- Empty State -->
+            <div class="text-center py-12">
+                <i data-feather="bell-off" class="w-16 h-16 mx-auto text-gray-300 mb-4"></i>
+                <h3 class="text-lg font-medium text-gray-900 mb-2">Aucune notification</h3>
+                <p class="text-gray-500">
+                    {% if status_filter == 'unread' %}
+                        Vous n'avez aucune notification non lue.
+                    {% elif type_filter != 'all' %}
+                        Aucune notification de ce type trouvée.
+                    {% else %}
+                        Vous n'avez encore reçu aucune notification.
+                    {% endif %}
+                </p>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Pagination -->
+    {% if notifications.has_other_pages %}
+    <div class="flex justify-center">
+        <nav class="flex items-center gap-2">
+            {% if notifications.has_previous %}
+                <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ notifications.previous_page_number }}" 
+                   class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Précédent
+                </a>
+            {% endif %}
+            
+            <span class="px-4 py-2 text-sm bg-brand-primary text-white rounded-lg">
+                {{ notifications.number }} / {{ notifications.paginator.num_pages }}
+            </span>
+            
+            {% if notifications.has_next %}
+                <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ notifications.next_page_number }}" 
+                   class="px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                    Suivant
+                </a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+    <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+        <div class="flex items-center gap-3 mb-4">
+            <div class="w-12 h-12 bg-red-100 rounded-lg flex items-center justify-center">
+                <i data-feather="trash-2" class="w-6 h-6 text-red-600"></i>
+            </div>
+            <div>
+                <h3 class="font-semibold text-gray-900">Supprimer la notification</h3>
+                <p class="text-sm text-gray-600">Cette action ne peut pas être annulée.</p>
+            </div>
+        </div>
+        
+        <div class="flex gap-3">
+            <button onclick="hideDeleteConfirm()" class="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition">
+                Annuler
+            </button>
+            <button onclick="confirmDelete()" class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+                Supprimer
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global variables
+let notificationToDelete = null;
+
+// Handle notification click
+function handleNotificationClick(notificationId, actionUrl) {
+    // Mark as read if not already
+    markAsRead(notificationId, false);
+    
+    // Navigate to action URL if provided
+    if (actionUrl && actionUrl.trim() !== '') {
+        window.location.href = actionUrl;
+    }
+}
+
+// Mark notification as read
+async function markAsRead(notificationId, showMessage = true) {
+    try {
+        const response = await fetch(`/notifications/${notificationId}/mark-read/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update UI
+            const notificationElement = document.querySelector(`[data-notification-id="${notificationId}"]`);
+            if (notificationElement) {
+                notificationElement.classList.remove('bg-blue-50/30', 'border-l-4', 'border-l-blue-500');
+                const unreadIndicator = notificationElement.querySelector('.bg-blue-500.rounded-full');
+                if (unreadIndicator) {
+                    unreadIndicator.remove();
+                }
+                const markAsReadBtn = notificationElement.querySelector('button[title="Marquer comme lu"]');
+                if (markAsReadBtn) {
+                    markAsReadBtn.remove();
+                }
+            }
+            
+            // Update badge in navigation
+            updateNotificationBadge();
+            
+            if (showMessage) {
+                showNotification('Notification marquée comme lue', 'success');
+            }
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        if (showMessage) {
+            showNotification('Erreur lors de la mise à jour', 'error');
+        }
+    }
+}
+
+// Mark all notifications as read
+async function markAllAsRead() {
+    try {
+        const response = await fetch('/notifications/mark-all-read/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Refresh page
+            window.location.reload();
+        } else {
+            showNotification(data.message, 'error');
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        showNotification('Erreur lors de la mise à jour', 'error');
+    }
+}
+
+// Show delete confirmation
+function showDeleteConfirm(notificationId) {
+    notificationToDelete = notificationId;
+    document.getElementById('deleteModal').classList.remove('hidden');
+}
+
+// Hide delete confirmation
+function hideDeleteConfirm() {
+    notificationToDelete = null;
+    document.getElementById('deleteModal').classList.add('hidden');
+}
+
+// Confirm delete
+async function confirmDelete() {
+    if (!notificationToDelete) return;
+    
+    try {
+        const response = await fetch(`/notifications/${notificationToDelete}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json',
+            },
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Remove from UI
+            const notificationElement = document.querySelector(`[data-notification-id="${notificationToDelete}"]`);
+            if (notificationElement) {
+                notificationElement.remove();
+            }
+            
+            showNotification('Notification supprimée', 'success');
+        } else {
+            showNotification(data.message, 'error');
+        }
+        
+        hideDeleteConfirm();
+    } catch (error) {
+        console.error('Erreur:', error);
+        showNotification('Erreur lors de la suppression', 'error');
+        hideDeleteConfirm();
+    }
+}
+
+// Toggle expanded content
+function toggleExpanded(button) {
+    const notificationItem = button.closest('.notification-item');
+    const expandedContent = notificationItem.querySelector('.expanded-content');
+    const icon = button.querySelector('[data-feather]');
+    
+    if (expandedContent.classList.contains('hidden')) {
+        expandedContent.classList.remove('hidden');
+        icon.setAttribute('data-feather', 'chevron-up');
+        button.setAttribute('title', 'Voir moins');
+    } else {
+        expandedContent.classList.add('hidden');
+        icon.setAttribute('data-feather', 'chevron-down');
+        button.setAttribute('title', 'Voir plus');
+    }
+    
+    // Re-render feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+}
+
+// Update notification badge in navigation
+function updateNotificationBadge() {
+    // This would update the badge in the sidebar
+    // Implementation depends on your sidebar structure
+}
+
+// Show notification message
+function showNotification(message, type = 'info') {
+    // Implementation for showing temporary notifications
+    // Could use your existing message system
+    console.log(`${type.toUpperCase()}: ${message}`);
+}
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize feather icons
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    // Close modal when clicking outside
+    document.getElementById('deleteModal').addEventListener('click', function(e) {
+        if (e.target === this) {
+            hideDeleteConfirm();
+        }
+    });
+});
+</script>
+{% endblock %}
