@@ -217,29 +217,36 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # ==============================================================================
-# EMAIL CONFIGURATION
+# EMAIL CONFIGURATION - Enhanced with better error handling and alternatives
 # ==============================================================================
 
-# EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-# EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
-# EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
-# EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
-# EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
-# EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
-EMAIL_HOST_USER='appdevmailfortesting@gmail.com'
-EMAIL_HOST_PASSWORD='lyxs qnlg ougd ksoa' 
-DEFAULT_FROM_EMAIL = 'Famille Kanyamukenge <appdevmailfortesting@gmail.com>'
+# Choose email backend based on configuration
+EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.smtp.EmailBackend')
+
+# Primary Gmail SMTP Configuration
+EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='appdevmailfortesting@gmail.com')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='lyxs qnlg ougd ksoa')
+
+# Email settings
+DEFAULT_FROM_EMAIL = f'Famille Kanyamukenge <{EMAIL_HOST_USER}>'
+SERVER_EMAIL = EMAIL_HOST_USER
 SITE_NAME = 'KANYAMUKENGE'
 
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
-SERVER_EMAIL = EMAIL_HOST_USER
+# Email timeout settings (important for production)
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)  # 30 seconds timeout
+
+# Alternative email backends for development/testing
+if DEBUG:
+    # For development, you can also use console backend to see emails in terminal
+    # EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+    pass
 
 # OTP Settings
 OTP_EXPIRE_MINUTES = config('OTP_EXPIRE_MINUTES', default=10, cast=int)
+
 # ==============================================================================
 # SECURITY SETTINGS - Enhanced for production
 # ==============================================================================
@@ -325,6 +332,12 @@ LOGGING = {
             'level': 'ERROR',
             'propagate': False,
         },
+        # Add specific logger for email debugging
+        'django.core.mail': {
+            'handlers': ['console'],
+            'level': 'DEBUG' if DEBUG else 'INFO',
+            'propagate': False,
+        },
     },
     'root': {
         'handlers': ['console'],
@@ -342,7 +355,7 @@ if not DEBUG and os.access(LOGS_DIR, os.W_OK):
     }
     
     # Add file handler to loggers
-    for logger in ['accounts', 'genealogy', 'session', 'django.security']:
+    for logger in ['accounts', 'genealogy', 'session', 'django.security', 'django.core.mail']:
         LOGGING['loggers'][logger]['handlers'].append('file')
     
 # ==============================================================================

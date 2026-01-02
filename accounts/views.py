@@ -4,7 +4,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.core.mail import send_mail
+from django.core.mail import send_mail, BadHeaderError
 from django.conf import settings
 from django.urls import reverse
 from django.utils import timezone
@@ -16,6 +16,8 @@ from django.views.decorators.http import require_http_methods
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
 from django.http import JsonResponse
+from smtplib import SMTPException
+import socket
 
 from .forms import (
     UserRegistrationForm, LoginForm, AdminOTPForm, 
@@ -39,12 +41,20 @@ def login_view(request):
             if user.role == 'admin':
                 # Generate and send OTP
                 otp = OTPToken.objects.create(user=user)
-                send_otp_email(user, otp.token)
                 
-                # Store user ID in session for OTP verification
-                request.session['otp_user_id'] = user.id
-                messages.success(request, 'Un code de vérification a été envoyé à votre email.')
-                return redirect('accounts:otp_verify')
+                # Send OTP email with improved error handling
+                email_sent = send_otp_email(user, otp.token)
+                
+                if email_sent:
+                    # Store user ID in session for OTP verification
+                    request.session['otp_user_id'] = user.id
+                    messages.success(request, 'Un code de vérification a été envoyé à votre email.')
+                    return redirect('accounts:otp_verify')
+                else:
+                    # Email failed, show error and allow retry
+                    messages.error(request, 'Erreur lors de l\'envoi du code. Veuillez réessayer ou contacter l\'administrateur.')
+                    # Delete the unused OTP token
+                    otp.delete()
             else:
                 # Regular login for non-admin users
                 login(request, user)
@@ -102,7 +112,7 @@ def otp_verify(request):
 
 
 def resend_otp(request):
-    """Resend OTP code to admin user"""
+    """Resend OTP code to admin user with improved error handling"""
     user_id = request.session.get('otp_user_id')
     if not user_id:
         messages.error(request, 'Session expirée. Veuillez vous reconnecter.')
@@ -115,9 +125,17 @@ def resend_otp(request):
     
     # Generate new OTP
     otp = OTPToken.objects.create(user=user)
-    send_otp_email(user, otp.token)
     
-    messages.success(request, 'Un nouveau code de vérification a été envoyé.')
+    # Send OTP email with improved error handling
+    email_sent = send_otp_email(user, otp.token)
+    
+    if email_sent:
+        messages.success(request, 'Un nouveau code de vérification a été envoyé.')
+    else:
+        messages.error(request, 'Erreur lors de l\'envoi du code. Veuillez contacter l\'administrateur.')
+        # Delete the unused OTP token
+        otp.delete()
+    
     return redirect('accounts:otp_verify')
 
 
@@ -127,7 +145,7 @@ def register(request, token):
     
     if not invitation.is_valid():
         messages.error(request, 'Cette invitation a expiré ou n\'est plus valide.')
-        return redirect('home')
+        return redirect('genealogy:home')
     
     if request.method == 'POST':
         form = UserRegistrationForm(request.POST)
@@ -161,7 +179,7 @@ def register(request, token):
 
 @login_required
 def send_invitation(request):
-    """Send invitation to new family member"""
+    """Send invitation to new family member with improved error handling"""
     if request.user.role != 'admin':
         messages.error(request, 'Seuls les administrateurs peuvent envoyer des invitations.')
         return redirect('genealogy:dashboard')
@@ -173,11 +191,14 @@ def send_invitation(request):
             invitation.invited_by = request.user
             invitation.save()
             
-            # Send invitation email
-            send_invitation_email_async(invitation)
-
+            # Send invitation email with improved error handling
+            email_sent = send_invitation_email_async(invitation)
             
-            messages.success(request, f'Invitation envoyée à {invitation.email}.')
+            if email_sent:
+                messages.success(request, f'Invitation envoyée à {invitation.email}.')
+            else:
+                messages.warning(request, f'Invitation créée pour {invitation.email}, mais l\'envoi d\'email a échoué. Contactez l\'utilisateur manuellement.')
+            
             return redirect('genealogy:manage_users')
     else:
         form = InvitationForm()
@@ -431,109 +452,267 @@ def logout_view(request):
     return redirect('genealogy:home')
 
 
-# Email helper functions
+# ==============================================================================
+# Enhanced Email helper functions with proper error handling
+# ==============================================================================
+
 def send_otp_email(user, token):
-    """Send OTP token via email"""
-    subject = 'Code de vérification - Famille KANYAMUKENGE'
-    message = f"""
-    Bonjour {user.get_full_name()},
-    
-    Voici votre code de vérification pour accéder au système généalogique de la famille KANYAMUKENGE:
-    
-    Code: {token}
-    
-    Ce code expire dans {settings.OTP_EXPIRE_MINUTES} minutes.
-    
-    Si vous n'avez pas demandé ce code, ignorez ce message.
-    
-    Cordialement,
-    L'équipe KANYAMUKENGE
     """
-    
-    send_mail(
-        subject,
-        message,
-        settings.DEFAULT_FROM_EMAIL,
-        [user.email],
-        fail_silently=True,
-    )
+    Send OTP token via Gmail SMTP with comprehensive error handling
+    Returns True if successful, False otherwise
+    """
+    try:
+        subject = 'Code de vérification - Famille KANYAMUKENGE'
+        
+        # Enhanced message with better formatting
+        message = f"""
+Bonjour {user.get_full_name()},
+
+Voici votre code de vérification pour accéder au système généalogique de la famille KANYAMUKENGE :
+
+===================
+    CODE : {token}
+===================
+
+Ce code expire dans {settings.OTP_EXPIRE_MINUTES} minutes.
+
+IMPORTANT : Si vous n'avez pas demandé ce code, ignorez ce message pour des raisons de sécurité.
+
+Cordialement,
+L'équipe KANYAMUKENGE
+
+---
+Ceci est un message automatique, merci de ne pas y répondre.
+        """.strip()
+        
+        # Send email with error handling
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,  # We want to catch exceptions
+        )
+        
+        logger.info(f"✅ OTP email sent successfully to {user.email}")
+        return True
+        
+    except BadHeaderError:
+        logger.error(f"❌ Bad header error sending OTP email to {user.email}")
+        return False
+    except SMTPException as e:
+        logger.error(f"❌ SMTP error sending OTP email to {user.email}: {str(e)}")
+        return False
+    except socket.error as e:
+        logger.error(f"❌ Network error sending OTP email to {user.email}: {str(e)}")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Unexpected error sending OTP email to {user.email}: {str(e)}")
+        return False
 
 
 def send_invitation_email_async(invitation):
-    """Send invitation email in background thread to avoid blocking request"""
+    """
+    Send invitation email in background thread with improved error handling
+    Returns True immediately (actual success is logged)
+    """
     
     def send_email_background():
-        """Background function to send email"""
+        """Background function to send invitation email"""
         try:
             # Build the registration URL
-            base_url = f"https://{settings.ALLOWED_HOSTS[0]}" if settings.ALLOWED_HOSTS else "http://localhost:8000"
+            if hasattr(settings, 'ALLOWED_HOSTS') and settings.ALLOWED_HOSTS and settings.ALLOWED_HOSTS[0]:
+                # Use first allowed host for production
+                base_url = f"https://{settings.ALLOWED_HOSTS[0]}"
+            else:
+                # Fallback for development
+                base_url = "http://localhost:8000"
+            
             registration_url = f"{base_url}{reverse('accounts:register', kwargs={'token': invitation.token})}"
             
             subject = 'Invitation - Famille KANYAMUKENGE'
             
+            # Enhanced invitation message
             message = f"""
 Bonjour,
 
-Vous êtes invité(e) à rejoindre l'arbre généalogique de la famille KANYAMUKENGE par {invitation.invited_by.get_full_name()}.
+Vous êtes cordialement invité(e) à rejoindre l'arbre généalogique de la famille KANYAMUKENGE par {invitation.invited_by.get_full_name()}.
 
-Pour créer votre compte et accéder à l'arbre familial, cliquez sur le lien ci-dessous:
+🌳 REJOIGNEZ NOTRE ARBRE FAMILIAL 🌳
+
+Pour créer votre compte et accéder à l'arbre familial, cliquez sur le lien ci-dessous :
+
 {registration_url}
 
-Cette invitation expire le {invitation.expires_at.strftime('%d/%m/%Y à %H:%M')}.
+⚠️  IMPORTANT : Cette invitation expire le {invitation.expires_at.strftime('%d/%m/%Y à %H:%M')}.
 
-Si vous avez des questions, contactez {invitation.invited_by.get_full_name()} à l'adresse: {invitation.invited_by.email}
+Une fois inscrit(e), vous pourrez :
+✓ Explorer l'histoire de notre famille
+✓ Ajouter vos informations personnelles
+✓ Contribuer aux records familiaux
+✓ Connecter avec d'autres membres de la famille
+
+Si vous avez des questions, contactez {invitation.invited_by.get_full_name()} à l'adresse : {invitation.invited_by.email}
+
+Nous avons hâte de vous accueillir dans notre communauté familiale !
 
 Cordialement,
 La famille KANYAMUKENGE
+
+---
+Ceci est un message automatique, merci de ne pas y répondre.
             """.strip()
             
-            # Send email (this can take time, but won't block the web request)
+            # Send email with comprehensive error handling
             send_mail(
-                subject,
-                message,
-                settings.DEFAULT_FROM_EMAIL,
-                [invitation.email],
-                fail_silently=True
+                subject=subject,
+                message=message,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[invitation.email],
+                fail_silently=False,  # We want to catch exceptions
             )
             
             logger.info(f"✅ Invitation email sent successfully to {invitation.email}")
             
+        except BadHeaderError:
+            logger.error(f"❌ Bad header error sending invitation to {invitation.email}")
+        except SMTPException as e:
+            logger.error(f"❌ SMTP error sending invitation to {invitation.email}: {str(e)}")
+        except socket.error as e:
+            logger.error(f"❌ Network error sending invitation to {invitation.email}: {str(e)}")
         except Exception as e:
-            logger.error(f"❌ Failed to send invitation email to {invitation.email}: {str(e)}")
+            logger.error(f"❌ Unexpected error sending invitation to {invitation.email}: {str(e)}")
     
     # Start email sending in background thread
-    email_thread = threading.Thread(target=send_email_background)
-    email_thread.daemon = True  # Dies when main thread dies
-    email_thread.start()
-    
-    logger.info(f"📧 Email sending started in background for {invitation.email}")
-    return True  # Return immediately
-    
+    try:
+        email_thread = threading.Thread(target=send_email_background)
+        email_thread.daemon = True  # Dies when main thread dies
+        email_thread.start()
+        
+        logger.info(f"📧 Invitation email sending started in background for {invitation.email}")
+        return True  # Return immediately
+    except Exception as e:
+        logger.error(f"❌ Failed to start email thread for {invitation.email}: {str(e)}")
+        return False
 
 
 def send_welcome_email(user):
-    """Send welcome email to new user"""
-    subject = 'Bienvenue - Famille KANYAMUKENGE'
-    message = f"""
-    Bienvenue {user.get_full_name()},
-    
-    Votre compte a été créé avec succès sur la plateforme généalogique de la famille KANYAMUKENGE.
-    
-    Vous pouvez maintenant:
-    - Explorer l'arbre généalogique de la famille
-    - Ajouter vos propres informations
-    - Contribuer à l'enrichissement de notre histoire familiale
-    
-    Nous sommes heureux de vous accueillir dans cette initiative de préservation de notre patrimoine familial.
-    
-    Cordialement,
-    La famille KANYAMUKENGE
     """
+    Send welcome email to new user with improved error handling
+    """
+    try:
+        subject = 'Bienvenue - Famille KANYAMUKENGE'
+        
+        message = f"""
+🎉 Bienvenue {user.get_full_name()} ! 🎉
+
+Votre compte a été créé avec succès sur la plateforme généalogique de la famille KANYAMUKENGE.
+
+🌳 BIENVENUE DANS LA FAMILLE ! 🌳
+
+Vous pouvez maintenant :
+✓ Explorer l'arbre généalogique de la famille
+✓ Ajouter vos propres informations
+✓ Découvrir l'histoire de vos ancêtres
+✓ Contribuer à l'enrichissement de notre patrimoine familial
+✓ Connecter avec d'autres membres de la famille
+
+Nous sommes ravis de vous accueillir dans cette initiative de préservation de notre histoire familiale.
+
+Pour commencer, connectez-vous à votre compte et explorez notre plateforme.
+
+Si vous avez des questions, n'hésitez pas à contacter un administrateur.
+
+Encore une fois, bienvenue dans la famille KANYAMUKENGE !
+
+Cordialement,
+La famille KANYAMUKENGE
+
+---
+Ceci est un message automatique, merci de ne pas y répondre.
+        """.strip()
+        
+        # Send email with error handling
+        send_mail(
+            subject=subject,
+            message=message,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[user.email],
+            fail_silently=False,  # We want to catch exceptions
+        )
+        
+        logger.info(f"✅ Welcome email sent successfully to {user.email}")
+        return True
+        
+    except BadHeaderError:
+        logger.error(f"❌ Bad header error sending welcome email to {user.email}")
+        return False
+    except SMTPException as e:
+        logger.error(f"❌ SMTP error sending welcome email to {user.email}: {str(e)}")
+        return False
+    except socket.error as e:
+        logger.error(f"❌ Network error sending welcome email to {user.email}: {str(e)}")
+        return False
+    except Exception as e:
+        logger.error(f"❌ Unexpected error sending welcome email to {user.email}: {str(e)}")
+        return False
+
+
+# ==============================================================================
+# Debug and testing functions
+# ==============================================================================
+
+@login_required
+def debug_email_test(request):
+    """
+    Debug endpoint to test email functionality
+    Only available for admin users in DEBUG mode
+    """
+    if not (request.user.role == 'admin' and settings.DEBUG):
+        messages.error(request, 'Access denied - Admin only in DEBUG mode')
+        return redirect('genealogy:dashboard')
     
-    send_mail(
-        subject,
-        message,
-        settings.DEFAULT_FROM_EMAIL,
-        [user.email],
-        fail_silently=True,
-    )
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        
+        if action == 'test_otp':
+            # Test OTP email
+            test_token = "123456"
+            success = send_otp_email(request.user, test_token)
+            if success:
+                messages.success(request, f'Test OTP email sent successfully to {request.user.email}')
+            else:
+                messages.error(request, 'Failed to send test OTP email')
+                
+        elif action == 'test_welcome':
+            # Test welcome email
+            success = send_welcome_email(request.user)
+            if success:
+                messages.success(request, f'Test welcome email sent successfully to {request.user.email}')
+            else:
+                messages.error(request, 'Failed to send test welcome email')
+                
+        elif action == 'show_settings':
+            # Show email settings for debugging
+            email_info = {
+                'EMAIL_BACKEND': getattr(settings, 'EMAIL_BACKEND', 'Not set'),
+                'EMAIL_HOST': getattr(settings, 'EMAIL_HOST', 'Not set'),
+                'EMAIL_PORT': getattr(settings, 'EMAIL_PORT', 'Not set'),
+                'EMAIL_USE_TLS': getattr(settings, 'EMAIL_USE_TLS', 'Not set'),
+                'EMAIL_HOST_USER': getattr(settings, 'EMAIL_HOST_USER', 'Not set'),
+                'EMAIL_HOST_PASSWORD': '***HIDDEN***' if getattr(settings, 'EMAIL_HOST_PASSWORD', None) else 'Not set',
+                'DEFAULT_FROM_EMAIL': getattr(settings, 'DEFAULT_FROM_EMAIL', 'Not set'),
+            }
+            
+            info_message = "Email Configuration:\n" + "\n".join([f"{k}: {v}" for k, v in email_info.items()])
+            messages.info(request, info_message)
+    
+    # Simple template would be helpful, but for now we redirect
+    return render(request, 'accounts/debug_email.html', {
+        'email_settings': {
+            'backend': getattr(settings, 'EMAIL_BACKEND', 'Not configured'),
+            'host': getattr(settings, 'EMAIL_HOST', 'Not configured'),
+            'port': getattr(settings, 'EMAIL_PORT', 'Not configured'),
+            'user': getattr(settings, 'EMAIL_HOST_USER', 'Not configured'),
+        }
+    })
